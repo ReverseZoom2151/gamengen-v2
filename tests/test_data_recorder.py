@@ -86,6 +86,17 @@ def test_recorder_recovers_episode_identity_without_metadata(tmp_path: Path):
     assert [episode["episode_id"] for episode in episodes] == [0, 1]
 
 
+def test_recorder_recovers_from_stale_high_metadata_counts(tmp_path: Path):
+    first = EpisodeRecorder(str(tmp_path), save_frequency=1)
+    add_episode(first, env_id=0, length=1)
+    first.finalize()
+    (tmp_path / "metadata.json").write_text('{"total_episodes": 99, "total_frames": 999}')
+    second = EpisodeRecorder(str(tmp_path), save_frequency=1)
+    add_episode(second, env_id=0, length=1, offset=10)
+    second.finalize()
+    assert verify_recordings(str(tmp_path)) == {"episodes": 2, "frames": 4, "shards": 2}
+
+
 def test_npz_dataset_uses_canonical_target_action(tmp_path: Path):
     recorder = EpisodeRecorder(str(tmp_path), save_frequency=1)
     add_episode(recorder, env_id=0, length=3)

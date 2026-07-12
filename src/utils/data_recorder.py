@@ -64,8 +64,14 @@ class EpisodeRecorder:
                     highest_episode_id = max(highest_episode_id, int(item["episode_id"]))
                     recovered_frames += int(item["length"]) + 1
 
-        self.episode_count = max(int(metadata.get("total_episodes", 0)), highest_episode_id + 1, recovered_episodes)
-        self.total_frames = max(int(metadata.get("total_frames", 0)), recovered_frames)
+        if shard_ids:
+            # Shards are the durable source of truth after an interrupted or
+            # manually edited metadata write.
+            self.episode_count = max(highest_episode_id + 1, recovered_episodes)
+            self.total_frames = recovered_frames
+        else:
+            self.episode_count = int(metadata.get("total_episodes", 0))
+            self.total_frames = int(metadata.get("total_frames", 0))
         self.next_shard_id = max(shard_ids, default=-1) + 1
         self.shard_checksums: Dict[str, str] = dict(metadata.get("shard_checksums", {}))
 
