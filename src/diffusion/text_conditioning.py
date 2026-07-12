@@ -47,7 +47,7 @@ class TextConditionedGameNGen(nn.Module):
             param.requires_grad = False
 
         # Project CLIP embeddings to match action embeddings
-        self.text_proj = nn.Linear(text_embedding_dim, 128).to(device)
+        self.text_proj = nn.Linear(text_embedding_dim, base_model.action_embedding_dim).to(device)
 
         print("✓ Text conditioning initialized")
 

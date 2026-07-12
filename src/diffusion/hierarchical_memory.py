@@ -252,6 +252,9 @@ class HierarchicalMemoryGameNGen(nn.Module):
         """
         # Get context from memory
         context_frames, context_actions = self.get_context_for_generation()
+        # Keep the same conditioning convention as interactive inference: the
+        # newest action belongs to the frame transition being sampled.
+        context_actions[:, -1] = action
 
         # Generate
         with torch.no_grad():

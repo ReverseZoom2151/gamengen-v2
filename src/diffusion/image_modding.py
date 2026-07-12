@@ -79,12 +79,13 @@ class ImageBasedModding:
             modified_frame: Frame with object pasted
         """
         result = base_frame.copy()
+        y, x = position
+        if y < 0 or x < 0:
+            raise ValueError("paste position must be non-negative")
 
         if mask is None:
             # Simple paste
             h, w = object_frame.shape[:2]
-            y, x = position
-
             # Ensure we don't go out of bounds
             y_end = min(y + h, result.shape[0])
             x_end = min(x + w, result.shape[1])
@@ -93,8 +94,8 @@ class ImageBasedModding:
         else:
             # Masked paste (for non-rectangular objects)
             h, w = object_frame.shape[:2]
-            y, x = position
-
+            if y + h > result.shape[0] or x + w > result.shape[1]:
+                raise ValueError("masked paste must fit within base_frame")
             for c in range(3):  # RGB channels
                 result[y : y + h, x : x + w, c] = np.where(
                     mask, object_frame[:, :, c], result[y : y + h, x : x + w, c]
@@ -143,6 +144,8 @@ class ImageBasedModding:
 
         for i in range(num_frames_to_generate):
             action = actions[i] if i < len(actions) else 0
+            # The current action produces the next sampled frame.
+            context_actions[:, -1] = action
 
             # Generate next frame
             with torch.no_grad():
