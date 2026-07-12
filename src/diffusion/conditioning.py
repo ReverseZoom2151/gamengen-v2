@@ -31,3 +31,12 @@ class NoiseAugmentationEmbedding(nn.Module):
 
     def forward(self, noise_levels: torch.Tensor) -> torch.Tensor:
         return self.embedding(noise_levels)
+
+
+def condition_current_action(actions: torch.Tensor, action: int) -> torch.Tensor:
+    """Return fixed-length context actions with ``action`` assigned to its last token."""
+    if actions.ndim != 2 or actions.shape[1] == 0:
+        raise ValueError("actions must have shape (batch, non-empty sequence)")
+    conditioned = actions.clone()
+    conditioned[:, -1] = action
+    return conditioned

@@ -17,6 +17,7 @@ from typing import List, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
+from src.diffusion.conditioning import condition_current_action
 
 
 class MemoryCompressor(nn.Module):
@@ -258,7 +259,7 @@ class HierarchicalMemoryGameNGen(nn.Module):
         context_frames, context_actions = self.get_context_for_generation()
         # Keep the same conditioning convention as interactive inference: the
         # newest action belongs to the frame transition being sampled.
-        context_actions[:, -1] = action
+        context_actions = condition_current_action(context_actions, action)
 
         # Generate
         with torch.no_grad():

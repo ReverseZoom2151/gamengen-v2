@@ -19,6 +19,7 @@ import torch
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.diffusion.model import ActionConditionedDiffusionModel
+from src.diffusion.conditioning import condition_current_action
 from src.environment.chrome_dino_env import SimpleDinoEnv
 from src.config import load_config
 
@@ -109,9 +110,8 @@ class GameNGenPlayer:
         # The newest action belongs to the final context frame and produces the
         # frame being sampled.  Replacing the final action before sampling keeps
         # controls responsive without changing the model's fixed token length.
-        context_action_values = list(self.action_buffer)
-        context_action_values[-1] = action
-        context_actions = torch.tensor(context_action_values, dtype=torch.long).unsqueeze(0)
+        context_actions = torch.tensor(list(self.action_buffer), dtype=torch.long).unsqueeze(0)
+        context_actions = condition_current_action(context_actions, action)
 
         # Move to device
         context_frames = context_frames.to(self.model.device)

@@ -12,6 +12,7 @@ from typing import List, Optional
 import numpy as np
 import torch
 from PIL import Image
+from src.diffusion.conditioning import condition_current_action
 
 
 class ImageBasedModding:
@@ -145,7 +146,7 @@ class ImageBasedModding:
         for i in range(num_frames_to_generate):
             action = actions[i] if i < len(actions) else 0
             # The current action produces the next sampled frame.
-            context_actions[:, -1] = action
+            context_actions = condition_current_action(context_actions, action)
 
             # Generate next frame
             with torch.no_grad():
