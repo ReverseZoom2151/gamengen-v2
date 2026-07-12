@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
+from pathlib import Path
 from typing import Iterable
 
 
@@ -40,3 +43,17 @@ def data_policy_ablation(config: dict, data_dirs: dict[str, str]) -> list[dict]:
         plan["experiment_name"] = f"{config['experiment_name']}-policy-{policy}"
         plans.append(plan)
     return plans
+
+
+def save_experiment_plan(path: str | Path, plans: list[dict]) -> Path:
+    """Persist immutable planned configurations with deterministic hashes."""
+    if not plans:
+        raise ValueError("at least one experiment plan is required")
+    entries = []
+    for plan in plans:
+        encoded = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        entries.append({"experiment_name": plan.get("experiment_name"), "config_sha256": hashlib.sha256(encoded).hexdigest(), "config": plan})
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"format_version": 1, "experiments": entries}, indent=2, sort_keys=True), encoding="utf-8")
+    return path
