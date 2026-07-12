@@ -200,6 +200,7 @@ def train(config: dict):
         context_length=config["diffusion"]["context_length"],
         num_noise_buckets=config["diffusion"]["noise_augmentation"]["num_buckets"],
         max_noise_level=config["diffusion"]["noise_augmentation"]["max_noise_level"],
+        cfg_drop_prob=config["diffusion"].get("cfg_drop_prob", 0.1),
         device=device,
         dtype=dtype,
     )

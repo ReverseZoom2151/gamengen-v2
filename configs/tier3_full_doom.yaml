@@ -37,7 +37,8 @@ environment:
 # RL Agent Settings (PPO - Paper Appendix A.5)
 agent:
   algorithm: "PPO"
-  total_timesteps: 50000000  # 50M steps (paper)
+  total_timesteps: 10000000  # ICLR 2025 paper setting: 10M environment steps
+  num_envs: 8
   buffer_size: 512
   learning_rate: 1e-4
   batch_size: 64
@@ -55,7 +56,7 @@ agent:
 
 # Data Collection
 data_collection:
-  total_frames: 70000000  # 70M frames (paper)
+  total_frames: 900000000  # ICLR 2025 paper setting: all recorded trajectories
   save_frequency: 10
   compress: true
   record_throughout_training: true
@@ -81,7 +82,7 @@ diffusion:
 
   # Training (Paper Section 4.2)
   batch_size: 128  # Paper's batch size (requires multi-GPU or accumulation)
-  gradient_accumulation_steps: 8  # Effective batch size 128 on single GPU
+  gradient_accumulation_steps: 1  # Paper global batch; practical profiles may override
   num_train_steps: 700000  # Paper trains for 700k steps
   learning_rate: 2e-5
   gradient_clip: 1.0
@@ -117,7 +118,7 @@ decoder:
   enabled: true
   learning_rate: 1e-4
   batch_size: 2048  # Paper's batch size
-  num_steps: 10000
+  num_steps: 700000  # Paper uses denoiser training settings except batch size
   # Train separately after main training
 
 # Inference Settings (Paper Section 3.3.2)
@@ -132,7 +133,8 @@ inference:
 distillation:
   enabled: false  # Set to true to distill to 1-step model
   teacher_checkpoint: "checkpoints_doom_full/best.pt"
-  num_steps: 50000
+  num_steps: 1000
+  batch_size: 128
   learning_rate: 1e-5
   distillation_weight: 1.0
 

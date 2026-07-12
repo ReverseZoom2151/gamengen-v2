@@ -72,6 +72,8 @@ class ActionConditionedDiffusionModel(nn.Module):
         context_length: int = 32,
         num_noise_buckets: int = 10,
         max_noise_level: float = 0.7,
+        cfg_drop_prob: float = 0.1,
+        prediction_type: str = "v_prediction",
         device: str = "cuda",
         dtype: torch.dtype = torch.float16,
     ):
@@ -82,6 +84,8 @@ class ActionConditionedDiffusionModel(nn.Module):
         self.context_length = context_length
         self.num_noise_buckets = num_noise_buckets
         self.max_noise_level = max_noise_level
+        self.cfg_drop_prob = cfg_drop_prob
+        self.prediction_type = prediction_type
         self.device = device
         self.dtype = dtype
 
@@ -100,6 +104,7 @@ class ActionConditionedDiffusionModel(nn.Module):
         self.noise_scheduler = DDIMScheduler.from_pretrained(
             pretrained_model_name, subfolder="scheduler"
         )
+        self.noise_scheduler.register_to_config(prediction_type=prediction_type)
 
         # Freeze VAE encoder during training (we'll fine-tune decoder separately)
         for param in self.vae.parameters():
@@ -184,6 +189,7 @@ class ActionConditionedDiffusionModel(nn.Module):
             need_reshape = False
 
         # Normalize to [-1, 1] if needed
+        frames = frames.to(device=self.device, dtype=self.dtype)
         if frames.max() > 1.0:
             frames = frames / 127.5 - 1.0
 
@@ -211,6 +217,7 @@ class ActionConditionedDiffusionModel(nn.Module):
             images: (batch_size, 3, height, width) in range [0, 255]
         """
         # Unscale latents
+        latents = latents.to(device=self.device, dtype=self.dtype)
         latents = latents / self.vae.config.scaling_factor
 
         # Decode
@@ -311,6 +318,16 @@ class ActionConditionedDiffusionModel(nn.Module):
         noise = torch.randn_like(target_latents)
         noisy_latents = self.noise_scheduler.add_noise(target_latents, noise, timesteps)
 
+        # Train the observation-unconditional branch required for CFG.  Action
+        # tokens deliberately remain conditioned, matching the paper setup.
+        if self.training and self.cfg_drop_prob > 0:
+            drop_mask = torch.rand(batch_size, device=self.device) < self.cfg_drop_prob
+            context_latents = context_latents.masked_fill(
+                drop_mask.view(-1, 1, 1, 1, 1), 0
+            )
+        else:
+            drop_mask = torch.zeros(batch_size, device=self.device, dtype=torch.bool)
+
         # Concatenate noisy target with context frames
         # Flatten context: (B, T, C, H, W) -> (B, T*C, H, W)
         context_flat = context_latents.reshape(
@@ -346,8 +363,11 @@ class ActionConditionedDiffusionModel(nn.Module):
 
         # Compute loss (velocity parameterization)
         # v = alpha_t * noise - sigma_t * x_0
-        alpha_t = self.noise_scheduler.alphas_cumprod[timesteps].sqrt()
-        sigma_t = (1 - self.noise_scheduler.alphas_cumprod[timesteps]).sqrt()
+        alphas_cumprod = self.noise_scheduler.alphas_cumprod.to(
+            device=target_latents.device, dtype=target_latents.dtype
+        )
+        alpha_t = alphas_cumprod[timesteps].sqrt()
+        sigma_t = (1 - alphas_cumprod[timesteps]).sqrt()
 
         alpha_t = alpha_t.view(-1, 1, 1, 1)
         sigma_t = sigma_t.view(-1, 1, 1, 1)
@@ -362,6 +382,7 @@ class ActionConditionedDiffusionModel(nn.Module):
                 "loss": loss,
                 "v_pred": v_pred,
                 "v_target": v_target,
+                "context_dropped": drop_mask,
             }
 
         return loss
@@ -480,6 +501,8 @@ class ActionConditionedDiffusionModel(nn.Module):
                     "context_length": self.context_length,
                     "num_noise_buckets": self.num_noise_buckets,
                     "max_noise_level": self.max_noise_level,
+                    "cfg_drop_prob": self.cfg_drop_prob,
+                    "prediction_type": self.prediction_type,
                 },
             },
             os.path.join(save_path, "model.pt"),

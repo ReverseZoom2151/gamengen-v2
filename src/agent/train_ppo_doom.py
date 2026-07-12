@@ -36,29 +36,31 @@ class RecordingCallback(BaseCallback):
         self.recorder = recorder
         self.record_freq = record_freq
 
-        # Current episode buffers
-        self.current_frames = []
-        self.current_actions = []
-        self.current_rewards = []
-
     def _on_step(self) -> bool:
         """Called at each step"""
 
-        # Get current observation and action
-        # Note: For vectorized envs, we handle each env separately
+        if self.n_calls % self.record_freq != 0:
+            return True
+
+        # Stable-Baselines invokes callbacks after env.step() but before it
+        # updates model._last_obs, so _last_obs is observation_t and new_obs is
+        # observation_t_plus_1.  Recording them together preserves the exact
+        # transition contract for every vectorized environment independently.
+        observations = self.model._last_obs
         for i in range(len(self.locals["infos"])):
-            # Get frame from observation
-            frame = self.locals["new_obs"][i]
-
-            # Get action
-            action = self.locals["actions"][i]
-
-            # Get reward and done
-            reward = self.locals["rewards"][i]
-            done = self.locals["dones"][i]
-
-            # Record step
-            self.recorder.add_step(frame, action, reward, done)
+            info = self.locals["infos"][i]
+            done = bool(self.locals["dones"][i])
+            truncated = bool(info.get("TimeLimit.truncated", False))
+            self.recorder.add_transition(
+                observation=observations[i],
+                action=int(self.locals["actions"][i]),
+                reward=float(self.locals["rewards"][i]),
+                next_observation=self.locals["new_obs"][i],
+                terminated=done and not truncated,
+                truncated=truncated,
+                env_id=i,
+                metadata={"environment": "vizdoom"},
+            )
 
         return True
 
@@ -150,7 +152,7 @@ def train_ppo_doom(config: dict):
 
     # Create vectorized environments
     # Paper: "We run 8 games in parallel" (Section 4.1)
-    num_envs = 8
+    num_envs = int(config["agent"].get("num_envs", 8))
     print(f"\nCreating {num_envs} parallel environments...")
 
     envs = SubprocVecEnv([make_env(config, i) for i in range(num_envs)])

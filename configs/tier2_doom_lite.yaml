@@ -32,7 +32,8 @@ environment:
 # RL Agent Settings (PPO - paper uses PPO for DOOM)
 agent:
   algorithm: "PPO"
-  total_episodes: 10000  # More episodes than Tier 1
+  total_timesteps: 10000000
+  num_envs: 8
   buffer_size: 512
   learning_rate: 1e-4
   batch_size: 64

@@ -106,11 +106,12 @@ class GameNGenPlayer:
         context_frames = [self._preprocess_frame(f) for f in self.frame_buffer]
         context_frames = torch.stack(context_frames).unsqueeze(0)  # (1, T, C, H, W)
 
-        context_actions = torch.tensor(
-            list(self.action_buffer), dtype=torch.long
-        ).unsqueeze(
-            0
-        )  # (1, T)
+        # The newest action belongs to the final context frame and produces the
+        # frame being sampled.  Replacing the final action before sampling keeps
+        # controls responsive without changing the model's fixed token length.
+        context_action_values = list(self.action_buffer)
+        context_action_values[-1] = action
+        context_actions = torch.tensor(context_action_values, dtype=torch.long).unsqueeze(0)
 
         # Move to device
         context_frames = context_frames.to(self.model.device)
