@@ -159,12 +159,12 @@ class FVDCalculator:
         Returns:
             fvd: Fréchet Video Distance score
         """
+        if len(real_videos) != len(fake_videos) or len(real_videos) < 2:
+            raise ValueError("FVD requires equally sized real/fake sets with at least two videos")
         try:
             from scipy.linalg import sqrtm
         except ImportError as error:
             raise RuntimeError("FVD computation requires the optional scipy metrics dependency") from error
-        if len(real_videos) != len(fake_videos) or len(real_videos) < 2:
-            raise ValueError("FVD requires equally sized real/fake sets with at least two videos")
         # Extract features in batches
         real_features = []
         fake_features = []
