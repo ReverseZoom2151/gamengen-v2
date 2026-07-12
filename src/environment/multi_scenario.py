@@ -3,11 +3,11 @@ Multi-Scenario Training Support for DOOM
 Paper Tier 3 uses multiple DOOM scenarios for diversity
 """
 
-import random
 from pathlib import Path
 from typing import List, Optional
 
 import gymnasium as gym
+from src.environment.doom_contracts import ScenarioSelector
 
 
 class MultiScenarioViZDoomEnv(gym.Env):
@@ -43,6 +43,7 @@ class MultiScenarioViZDoomEnv(gym.Env):
         height: int = 256,
         frame_skip: int = 4,
         use_paper_reward: bool = False,
+        seed: Optional[int] = None,
         **kwargs,
     ):
         """
@@ -69,6 +70,8 @@ class MultiScenarioViZDoomEnv(gym.Env):
         self.height = height
         self.frame_skip = frame_skip
         self.use_paper_reward = use_paper_reward
+        self._factory_kwargs = dict(kwargs)
+        self.selector = ScenarioSelector(self.scenarios, self.scenario_weights, seed)
 
         # Current scenario
         self.current_scenario_idx = 0
@@ -84,7 +87,7 @@ class MultiScenarioViZDoomEnv(gym.Env):
             height=height,
             frame_skip=frame_skip,
             use_paper_reward=use_paper_reward,
-            **kwargs,
+            **self._factory_kwargs,
         )
 
         # Use same spaces as underlying environment
@@ -103,20 +106,11 @@ class MultiScenarioViZDoomEnv(gym.Env):
 
     def _select_next_scenario(self) -> str:
         """Select next scenario (weighted random or sequential)"""
-        if self.scenario_weights:
-            # Weighted random selection
-            self.current_scenario_idx = random.choices(
-                range(len(self.scenarios)), weights=self.scenario_weights, k=1
-            )[0]
-        else:
-            # Cycle through scenarios
-            self.current_scenario_idx = (self.current_scenario_idx + 1) % len(
-                self.scenarios
-            )
+        scenario = self.selector.next()
+        self.current_scenario_idx = self.selector.index
+        return scenario
 
-        return self.scenarios[self.current_scenario_idx]
-
-    def reset(self, **kwargs):
+    def reset(self, *, seed=None, options=None):
         """Reset environment, potentially changing scenario"""
 
         # Check if we should change scenario
@@ -137,11 +131,14 @@ class MultiScenarioViZDoomEnv(gym.Env):
                 height=self.height,
                 frame_skip=self.frame_skip,
                 use_paper_reward=self.use_paper_reward,
+                **self._factory_kwargs,
             )
 
         self.episode_count += 1
 
-        return self.env.reset(**kwargs)
+        if seed is not None:
+            self.selector.reset_seed(seed)
+        return self.env.reset(seed=seed, options=options)
 
     def step(self, action):
         """Forward to underlying environment"""

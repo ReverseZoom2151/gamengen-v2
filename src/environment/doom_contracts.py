@@ -1,6 +1,7 @@
 """Dependency-free contracts shared by the ViZDoom runtime and unit tests."""
 
 import numpy as np
+import random
 
 
 def pad_rgb_frame(frame: np.ndarray, width: int, height: int) -> np.ndarray:
@@ -41,3 +42,25 @@ def paper_reward(previous: dict, current: dict, visited_positions: set[tuple[int
     reward += 10.0 * (current["armor"] - previous["armor"])
     ammo_delta = current["ammo"] - previous["ammo"]
     return reward + 10.0 * max(0, ammo_delta) + min(0, ammo_delta)
+
+
+class ScenarioSelector:
+    """Deterministic sequential/weighted scenario selection independent of ViZDoom."""
+
+    def __init__(self, scenarios: list[str], weights: list[float] | None = None, seed: int | None = None):
+        if not scenarios:
+            raise ValueError("at least one scenario is required")
+        if weights is not None and (len(weights) != len(scenarios) or any(weight < 0 for weight in weights) or not any(weights)):
+            raise ValueError("scenario weights must be non-negative, non-zero, and match scenarios")
+        self.scenarios, self.weights, self.index = scenarios, weights, 0
+        self.rng = random.Random(seed)
+
+    def reset_seed(self, seed: int) -> None:
+        self.rng.seed(seed)
+
+    def next(self) -> str:
+        if self.weights is None:
+            self.index = (self.index + 1) % len(self.scenarios)
+        else:
+            self.index = self.rng.choices(range(len(self.scenarios)), weights=self.weights, k=1)[0]
+        return self.scenarios[self.index]

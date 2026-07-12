@@ -119,7 +119,9 @@ def make_env(config: dict, rank: int = 0):
         if scenarios:
             from src.environment.multi_scenario import MultiScenarioViZDoomEnv
 
-            env = MultiScenarioViZDoomEnv(scenarios=scenarios, **kwargs)
+            env = MultiScenarioViZDoomEnv(
+                scenarios=scenarios, seed=int(config.get("seed", 0)) + rank, **kwargs
+            )
         else:
             env = create_vizdoom_env(scenario=environment.get("scenario", environment.get("config_file", "basic")), visible=False, **kwargs)
 
