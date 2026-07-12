@@ -10,13 +10,14 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import yaml
 from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.diffusion.dataset import create_dataloader
+from src.config import load_config, validate_config
+from src.diffusion.dataset import create_dataloaders
 from src.diffusion.model import ActionConditionedDiffusionModel
+from src.utils.training import atomic_torch_save, seed_everything
 
 
 def finetune_decoder(config: dict):
@@ -27,7 +28,12 @@ def finetune_decoder(config: dict):
     auto-encoder using an MSE loss computed against the target frame pixels"
     """
 
-    device = config.get("device", "cuda")
+    if not config.get("decoder", {}).get("enabled", False):
+        raise ValueError("decoder.enabled must be true to run decoder fine-tuning")
+    seed_everything(int(config.get("seed", 0)))
+    device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
+    output_dir = Path(config["checkpoint_dir"])
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 60)
     print("VAE Decoder Fine-tuning for GameNGen")
@@ -39,7 +45,7 @@ def finetune_decoder(config: dict):
         num_actions=config["environment"].get("num_actions", 3),
         action_embedding_dim=config["diffusion"]["action_embedding_dim"],
         context_length=config["diffusion"]["context_length"],
-        device=device,
+        device=str(device),
         dtype=torch.float32,
     )
 
@@ -55,7 +61,7 @@ def finetune_decoder(config: dict):
     )
 
     # Create dataloader
-    dataloader = create_dataloader(
+    dataloader, _ = create_dataloaders(
         data_dir=config["data_dir"],
         batch_size=config["decoder"]["batch_size"],
         context_length=config["diffusion"]["context_length"],
@@ -64,7 +70,8 @@ def finetune_decoder(config: dict):
             config["environment"]["resolution"]["width"],
         ),
         num_workers=config.get("num_workers", 4),
-        shuffle=True,
+        validation_fraction=config["diffusion"].get("validation_fraction", 0.05),
+        seed=int(config.get("seed", 0)),
     )
 
     # Optimizer
@@ -88,7 +95,7 @@ def finetune_decoder(config: dict):
             batch = next(dataloader_iter)
 
         # Get target frames
-        target_frames = batch["target_frame"].to(device)
+        target_frames = batch["target_frame"].to(device, non_blocking=True)
 
         # Normalize to [-1, 1]
         target_frames = target_frames / 127.5 - 1.0
@@ -116,30 +123,24 @@ def finetune_decoder(config: dict):
         pbar.set_postfix({"loss": f"{loss.item():.4f}"})
 
         # Save checkpoint
-        if global_step % 500 == 0:
-            checkpoint_path = (
-                Path(config["checkpoint_dir"]) / f"decoder_step_{global_step}.pt"
-            )
-            torch.save(
-                {
-                    "decoder": model.vae.decoder.state_dict(),
-                    "step": global_step,
-                },
-                checkpoint_path,
-            )
+        if global_step % config["diffusion"].get("save_every_n_steps", 500) == 0:
+            checkpoint_path = output_dir / f"decoder_step_{global_step}.pt"
+            atomic_torch_save({
+                "format_version": 1, "decoder": model.vae.decoder.state_dict(),
+                "optimizer": optimizer.state_dict(), "step": global_step,
+                "base_model": config["diffusion"]["pretrained_model"], "config": config,
+            }, checkpoint_path)
             print(f"\nSaved decoder checkpoint: {checkpoint_path}\n")
 
     pbar.close()
 
     # Save final decoder
-    final_path = Path(config["checkpoint_dir"]) / "decoder_finetuned.pt"
-    torch.save(
-        {
-            "decoder": model.vae.decoder.state_dict(),
-            "step": global_step,
-        },
-        final_path,
-    )
+    final_path = output_dir / "decoder_finetuned.pt"
+    atomic_torch_save({
+        "format_version": 1, "decoder": model.vae.decoder.state_dict(),
+        "optimizer": optimizer.state_dict(), "step": global_step,
+        "base_model": config["diffusion"]["pretrained_model"], "config": config,
+    }, final_path)
 
     print("\n" + "=" * 60)
     print(f"Decoder fine-tuning complete!")
@@ -152,10 +153,7 @@ def main():
     parser.add_argument("--config", type=str, default="configs/tier1_chrome_dino.yaml")
     args = parser.parse_args()
 
-    with open(args.config, "r") as f:
-        config = yaml.safe_load(f)
-
-    finetune_decoder(config)
+    finetune_decoder(validate_config(load_config(args.config)))
 
 
 if __name__ == "__main__":

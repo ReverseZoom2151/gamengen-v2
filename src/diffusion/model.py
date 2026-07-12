@@ -74,6 +74,7 @@ class ActionConditionedDiffusionModel(nn.Module):
         max_noise_level: float = 0.7,
         cfg_drop_prob: float = 0.1,
         prediction_type: str = "v_prediction",
+        decoder_checkpoint: Optional[str] = None,
         device: str = "cuda",
         dtype: torch.dtype = torch.float16,
     ):
@@ -109,6 +110,12 @@ class ActionConditionedDiffusionModel(nn.Module):
         # Freeze VAE encoder during training (we'll fine-tune decoder separately)
         for param in self.vae.parameters():
             param.requires_grad = False
+
+        if decoder_checkpoint:
+            checkpoint = torch.load(decoder_checkpoint, map_location=device, weights_only=False)
+            if checkpoint.get("base_model") not in (None, pretrained_model_name):
+                raise ValueError("decoder checkpoint was trained from a different base model")
+            self.vae.decoder.load_state_dict(checkpoint["decoder"])
 
         # Action embedding layer
         self.action_embedding = ActionEmbedding(num_actions, action_embedding_dim).to(

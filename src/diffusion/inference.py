@@ -14,13 +14,13 @@ import cv2
 import imageio
 import numpy as np
 import torch
-import yaml
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.diffusion.model import ActionConditionedDiffusionModel
 from src.environment.chrome_dino_env import SimpleDinoEnv
+from src.config import load_config
 
 
 class GameNGenPlayer:
@@ -410,9 +410,7 @@ def main():
 
     args = parser.parse_args()
 
-    # Load config
-    with open(args.config, "r") as f:
-        config = yaml.safe_load(f)
+    config = load_config(args.config)
 
     # Create model
     device = config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
@@ -425,18 +423,20 @@ def main():
         context_length=config["diffusion"]["context_length"],
         num_noise_buckets=config["diffusion"]["noise_augmentation"]["num_buckets"],
         max_noise_level=config["diffusion"]["noise_augmentation"]["max_noise_level"],
+        decoder_checkpoint=config.get("inference", {}).get("decoder_checkpoint"),
         device=device,
         dtype=torch.float32,  # Use float32 for inference
     )
 
     # Load checkpoint
     print(f"Loading checkpoint from {args.checkpoint}")
-    checkpoint = torch.load(args.checkpoint, map_location=device)
+    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
+    model_state = checkpoint.get("model", checkpoint)
 
-    model.unet.load_state_dict(checkpoint["unet"])
-    model.action_embedding.load_state_dict(checkpoint["action_embedding"])
-    model.noise_aug_embedding.load_state_dict(checkpoint["noise_aug_embedding"])
-    model.action_proj.load_state_dict(checkpoint["action_proj"])
+    model.unet.load_state_dict(model_state["unet"])
+    model.action_embedding.load_state_dict(model_state["action_embedding"])
+    model.noise_aug_embedding.load_state_dict(model_state["noise_aug_embedding"])
+    model.action_proj.load_state_dict(model_state["action_proj"])
 
     model.eval()
 
