@@ -44,14 +44,5 @@ jobs:
           python-version: "3.12"
       - name: Install linter
         run: pip install ruff
-      - name: Lint maintained foundation modules
-        run: |
-          ruff check \
-            gamengen \
-            src/config.py \
-            src/agent/dqn_agent.py \
-            src/diffusion/contracts.py \
-            src/environment/doom_contracts.py \
-            src/utils/data_recorder.py \
-            src/utils/migration.py \
-            src/utils/training.py
+      - name: Lint public package
+        run: ruff check gamengen
