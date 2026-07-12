@@ -90,3 +90,5 @@ project_tree.txt
 !data/recordings/.gitkeep
 !checkpoints/.gitkeep
 !logs/.gitkeep
+
+/repos/
