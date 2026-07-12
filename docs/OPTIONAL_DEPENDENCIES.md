@@ -1,160 +1,42 @@
-# Optional Dependencies Guide
+# Optional dependencies
 
-This guide covers optional dependencies that enhance GameNGen but aren't required for basic functionality.
+`pyproject.toml` is the authoritative dependency map. The offline test suite
+uses only its lightweight dependencies and does not download models or launch
+games.
 
----
+| Capability | Install | Status |
+|---|---|---|
+| ViZDoom environments | `pip install -e '.[doom]'` | Required for Tier 2/3 runtime only |
+| Chrome Dino browser environment | `pip install -e '.[dino]'` | Required for real Dino runtime only |
+| LPIPS, SSIM, SciPy FVD math | `pip install -e '.[metrics]'` | Required only when computing those metrics |
+| W&B | `pip install -e '.[tracking]'` | Configuration path is not yet fully integrated |
+| Tests/build/Ruff | `pip install -e '.[dev]'` | Development workflow |
 
-## I3D Model for Accurate FVD
+## FVD
 
-The paper uses **FVD (Fréchet Video Distance)** with an **I3D (Inflated 3D ConvNet)** model for video quality evaluation.
+The project deliberately has no simplified/random I3D fallback. A valid FVD
+calculation requires:
 
-### Quick Version (Simplified FVD)
+1. separately recorded real and autoregressively generated trajectories;
+2. an installed `pytorch_i3d` implementation; and
+3. an explicit trusted pretrained I3D weights file.
 
-**No installation needed!** The built-in implementation works out of the box with a simplified I3D.
+Without all three, FVD is unavailable and must not be used as a paper-quality
+or relative-quality claim.
 
-```bash
-# Works immediately
-from src.utils.fvd import FVDCalculator
-fvd_calc = FVDCalculator()
-```
+## Preflight
 
-This gives reasonable FVD scores but isn't identical to the paper's implementation.
-
----
-
-### Full Version (Paper-Accurate FVD)
-
-For FVD scores matching the paper exactly, install the full I3D model:
-
-#### Option 1: Install from Source (Recommended)
-
-```bash
-# Clone the I3D repository
-git clone https://github.com/piergiaj/pytorch-i3d.git
-cd pytorch-i3d
-
-# Install
-pip install -e .
-
-# Download pretrained weights
-# Follow instructions at: https://github.com/piergiaj/pytorch-i3d
-```
-
-#### Option 2: Manual Installation
+Run offline contract tests first:
 
 ```bash
-# Download the I3D code directly
-wget https://raw.githubusercontent.com/piergiaj/pytorch-i3d/master/pytorch_i3d.py
-
-# Place in your Python path or project
+python -m pytest -q
 ```
 
-#### Verification
-
-```python
-# Test if I3D is available
-try:
-    from pytorch_i3d import InceptionI3d
-    print("✓ Full I3D available")
-except ImportError:
-    print("⚠ Using simplified I3D (functional but not paper-exact)")
-```
-
----
-
-## Paper's FVD Results
-
-**With full I3D model:**
-- 16 frames: FVD = 114.02
-- 32 frames: FVD = 186.23
-
-**With simplified I3D:**
-- Results will be different but still useful for relative comparisons
-
----
-
-## ViZDoom (Required for Tier 2 & 3)
+For a recorded corpus, run the dependency-light verifier before model training:
 
 ```bash
-pip install vizdoom
+python -m src.utils.verify_recordings recordings
 ```
 
-If installation fails, see: https://github.com/Farama-Foundation/ViZDoom
-
----
-
-## Development Tools
-
-```bash
-pip install -r requirements-dev.txt
-```
-
-This includes:
-- Code formatters (black, isort)
-- Linters (flake8, pylint)
-- Testing tools (pytest)
-- Documentation tools (sphinx)
-- Jupyter notebooks
-
----
-
-## Weights & Biases (Optional Tracking)
-
-For experiment tracking with W&B:
-
-```bash
-# Already in requirements.txt as optional
-wandb login
-```
-
-Update config:
-```yaml
-logging:
-  use_wandb: true
-  wandb_project: "gamengen"
-```
-
----
-
-## Pre-commit Hooks (Optional)
-
-Auto-format code before commits:
-
-```bash
-# Install pre-commit
-pip install pre-commit
-
-# Install git hooks
-pre-commit install
-
-# Now code will be formatted automatically on commit
-```
-
----
-
-## Docker (Optional)
-
-For containerized development:
-
-```dockerfile
-# Coming soon: Dockerfile for full setup
-```
-
----
-
-## Summary
-
-**Required:**
-- PyTorch with CUDA
-- diffusers, stable-baselines3, gymnasium
-- Basic metrics (lpips, scikit-image)
-
-**Optional but Recommended:**
-- ViZDoom (for Tier 2 & 3)
-- Development tools (black, pytest, etc.)
-
-**Optional for Research:**
-- Full I3D (for paper-exact FVD)
-- Weights & Biases (experiment tracking)
-
-**Your code works without any optional dependencies!**
+Use only trusted legacy pickle input with the explicit migration command
+documented in [DATA_FORMAT.md](DATA_FORMAT.md).
