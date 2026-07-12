@@ -50,6 +50,7 @@ dev = ["build>=1.5.1", "pytest>=9.1.1", "pytest-cov>=7.1.0", "ruff>=0.15.21"]
 gamengen-train = "src.diffusion.train:main"
 gamengen-dino = "src.agent.train_dqn:main"
 gamengen-doom = "src.agent.train_ppo_doom:main"
+gamengen-cache-latents = "src.diffusion.latent_cache:main"
 
 [tool.setuptools.packages.find]
 include = ["gamengen", "src*"]

@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import tempfile
+import argparse
 from pathlib import Path
 from typing import Callable
 
@@ -73,3 +74,34 @@ def validate_latent_cache(path: str | Path, recording_shard: str | Path | None =
             if len(data[f"{prefix}_latents"]) != int(length) + 1 or len(data[f"{prefix}_actions"]) != int(length):
                 raise ValueError("latent cache transition alignment is invalid")
     return manifest
+
+
+def main() -> None:
+    """Build a cache with the configured revision-pinned VAE."""
+    parser = argparse.ArgumentParser(description="Precompute GameNGen VAE latents for one recording shard")
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--shard", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--batch-size", type=int, default=32)
+    args = parser.parse_args()
+    from src.config import load_config
+    from src.diffusion.model import ActionConditionedDiffusionModel
+    import torch
+
+    config = load_config(args.config)
+    diffusion, environment = config["diffusion"], config["environment"]
+    device = config.get("device", "cuda" if torch.cuda.is_available() else "cpu")
+    model = ActionConditionedDiffusionModel(
+        pretrained_model_name=diffusion["pretrained_model"], pretrained_revision=diffusion.get("pretrained_revision"),
+        num_actions=environment["num_actions"], action_embedding_dim=diffusion["action_embedding_dim"],
+        context_length=diffusion["context_length"], num_noise_buckets=diffusion["noise_augmentation"]["num_buckets"],
+        max_noise_level=diffusion["noise_augmentation"]["max_noise_level"], device=device, dtype=torch.float32,
+    )
+    def encode(frames: np.ndarray) -> np.ndarray:
+        chunks = []
+        for start in range(0, len(frames), args.batch_size):
+            batch = torch.from_numpy(frames[start:start + args.batch_size]).permute(0, 3, 1, 2).float()
+            chunks.append(model.encode_frames(batch).cpu().numpy())
+        return np.concatenate(chunks)
+    output = build_latent_cache(args.shard, args.output, encode, base_model=diffusion["pretrained_model"], base_model_revision=diffusion["pretrained_revision"])
+    print(f"Wrote validated latent cache: {output}")
