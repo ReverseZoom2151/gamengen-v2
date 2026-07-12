@@ -181,6 +181,7 @@ def evaluate_model_comprehensive(
     num_trajectories: int = 100,
     trajectory_length: int = 64,
     compute_fvd: bool = False,
+    enable_lpips: bool = True,
 ) -> Dict[str, float]:
     """
     Comprehensive evaluation of GameNGen model
@@ -196,7 +197,7 @@ def evaluate_model_comprehensive(
     Returns:
         Dictionary with all metrics
     """
-    evaluator = GameNGenEvaluator(device=device)
+    evaluator = GameNGenEvaluator(device=device, enable_lpips=enable_lpips)
 
     print("=" * 60)
     print("Comprehensive Model Evaluation")
@@ -237,20 +238,24 @@ def evaluate_model_comprehensive(
         metrics = evaluator.compute_all_metrics(generated, target_frame)
 
         all_psnr.append(metrics["psnr"])
-        all_lpips.append(metrics["lpips"])
+        if "lpips" in metrics:
+            all_lpips.append(metrics["lpips"])
         all_mse.append(metrics["mse"])
         if "ssim" in metrics:
             all_ssim.append(metrics["ssim"])
 
     # Aggregate results
+    if not all_psnr:
+        raise ValueError("evaluation dataloader yielded no trajectories")
     results = {
         "psnr_mean": np.mean(all_psnr),
         "psnr_std": np.std(all_psnr),
-        "lpips_mean": np.mean(all_lpips),
-        "lpips_std": np.std(all_lpips),
         "mse_mean": np.mean(all_mse),
         "mse_std": np.std(all_mse),
     }
+    if all_lpips:
+        results["lpips_mean"] = np.mean(all_lpips)
+        results["lpips_std"] = np.std(all_lpips)
 
     if all_ssim:
         results["ssim_mean"] = np.mean(all_ssim)
@@ -261,7 +266,8 @@ def evaluate_model_comprehensive(
     print("Evaluation Results:")
     print("=" * 60)
     print(f"PSNR:  {results['psnr_mean']:.2f} ± {results['psnr_std']:.2f} dB")
-    print(f"LPIPS: {results['lpips_mean']:.4f} ± {results['lpips_std']:.4f}")
+    if "lpips_mean" in results:
+        print(f"LPIPS: {results['lpips_mean']:.4f} ± {results['lpips_std']:.4f}")
     print(f"MSE:   {results['mse_mean']:.2f} ± {results['mse_std']:.2f}")
     if "ssim_mean" in results:
         print(f"SSIM:  {results['ssim_mean']:.4f} ± {results['ssim_std']:.4f}")

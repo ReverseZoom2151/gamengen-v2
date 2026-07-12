@@ -1,6 +1,11 @@
 import torch
+import pytest
 
-from src.utils.evaluation import GameNGenEvaluator, save_evaluation_report
+from src.utils.evaluation import (
+    GameNGenEvaluator,
+    evaluate_model_comprehensive,
+    save_evaluation_report,
+)
 
 
 def test_basic_metrics_work_without_optional_metric_models():
@@ -26,3 +31,12 @@ def test_evaluation_report_is_atomic_and_provenance_linked(tmp_path):
     assert path.is_file()
     assert "config_sha256" in path.read_text()
     assert not (tmp_path / "report.json.tmp").exists()
+
+
+def test_comprehensive_evaluation_rejects_empty_loader_without_model_work():
+    class Model:
+        def eval(self):
+            return self
+
+    with pytest.raises(ValueError, match="no trajectories"):
+        evaluate_model_comprehensive(Model(), [], device="cpu", enable_lpips=False)
