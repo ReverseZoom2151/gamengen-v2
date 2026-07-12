@@ -42,6 +42,8 @@ compatibility rules, and [ViZDoom integration notes](docs/VIZDOOM_INTEGRATION.md
 for the DOOM runtime, assets, map input, and transition boundary.
 See [human-evaluation guidance](docs/HUMAN_EVALUATION.md) before running a
 blinded participant study.
+See the [security policy](docs/SECURITY.md) for CI gates and responsible
+disclosure guidance.
 
 ## Commands
 
