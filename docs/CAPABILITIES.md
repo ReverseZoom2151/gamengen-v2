@@ -15,7 +15,7 @@ This document distinguishes implemented code from validated functionality.
 | Decoder fine-tuning | Experimental | Artifacts are provenance-tagged and loadable; end-to-end evaluation remains incomplete |
 | Distillation | Quarantined / unavailable | Command fails explicitly; do not use for research claims |
 | FVD | Experimental / unavailable | Invalid self-comparison is rejected; pretrained I3D and paired trajectory workflow remain required |
-| Human evaluation | Experimental / unavailable | Blinded protocol support exists; no study UI or results exist |
+| Human evaluation | Experimental | Blinded protocol generation uses neutral copied media aliases, a static browser UI, separate answer key, and post-collection scoring; no participant study or results exist |
 | Hierarchical memory | Experimental / unavailable | Variable latent maps work; it still requires a trained conditioning path |
 | Text conditioning and image modding | Experimental / unavailable | No validated end-to-end training/evaluation path |
 

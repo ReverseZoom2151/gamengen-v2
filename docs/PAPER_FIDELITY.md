@@ -20,7 +20,7 @@ Engines*. It is an implementation-status document, not a reproduction result.
 | 900M recorded frames | Configured target | No such corpus is included |
 | Decoder-only fine-tuning | Experimental | Artifacts are provenance-tagged/loadable; no quality result exists |
 | One-step distillation | Unavailable | Explicitly quarantined because historical logic was invalid |
-| FVD and human study | Unavailable as evidence | FVD requires paired trajectories/pretrained I3D; human protocol is blinded but no study exists |
+| FVD and human study | Partially implemented | FVD requires paired trajectories/pretrained I3D. Human-study tooling is blinded end-to-end, but no participant study exists |
 
 ## Reproduction gate
 

@@ -40,6 +40,8 @@ dependencies are intentionally not installed by the offline test path.
 See [dependency policy](docs/DEPENDENCY_POLICY.md) for version and platform
 compatibility rules, and [ViZDoom integration notes](docs/VIZDOOM_INTEGRATION.md)
 for the DOOM runtime, assets, map input, and transition boundary.
+See [human-evaluation guidance](docs/HUMAN_EVALUATION.md) before running a
+blinded participant study.
 
 ## Commands
 
