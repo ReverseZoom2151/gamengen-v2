@@ -22,7 +22,7 @@ from src.diffusion.model import ActionConditionedDiffusionModel
 from src.diffusion.conditioning import condition_current_action
 from src.diffusion.artifacts import model_state_from_checkpoint
 from src.diffusion.ema import apply_ema_state
-from src.environment.chrome_dino_env import SimpleDinoEnv
+from src.environment.factory import create_interactive_environment, interactive_environment_spec
 from src.config import load_config
 
 
@@ -169,10 +169,8 @@ def play_interactive(
 
     # Create environment for initial frames
     print("Initializing environment...")
-    env = SimpleDinoEnv(
-        width=config["environment"]["resolution"]["width"],
-        height=config["environment"]["resolution"]["height"],
-    )
+    environment_name, _, key_actions = interactive_environment_spec(config)
+    env = create_interactive_environment(config)
 
     # Create player
     player = GameNGenPlayer(
@@ -207,8 +205,11 @@ def play_interactive(
 
     print("\nStarting gameplay!")
     print("Controls:")
-    print("  SPACE: Jump")
-    print("  DOWN: Duck")
+    if environment_name == "chrome_dino":
+        print("  SPACE / UP: Jump")
+        print("  DOWN: Duck")
+    else:
+        print("  SPACE: Attack | arrows: move/turn | A/D: strafe")
     print("  Q: Quit")
     print("=" * 60 + "\n")
 
@@ -263,14 +264,8 @@ def play_interactive(
 
             if key == ord("q"):
                 break
-            elif key == ord(" "):
-                action = 1  # Jump
-            elif key == 82:  # Up arrow
-                action = 1  # Jump
-            elif key == 84:  # Down arrow
-                action = 2  # Duck
             else:
-                action = 0  # No action
+                action = key_actions.get(key, 0)
 
             frame_count += 1
 
