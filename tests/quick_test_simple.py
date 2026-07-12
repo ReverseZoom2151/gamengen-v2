@@ -42,7 +42,7 @@ def test_imports():
 
     if failed:
         print(f"\n[ERROR] Failed to import: {', '.join(failed)}")
-        print("Run: pip install -r requirements.txt")
+        print("Run: pip install -e '.[dev]'")
         return False
     else:
         print("\n[OK] All imports successful!")

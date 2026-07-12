@@ -1,7 +1,8 @@
 # Development Dependencies for GameNGen
 
 # Include base requirements
--r requirements.txt
+# pyproject.toml is authoritative; this file remains for legacy pip workflows.
+.
 
 # Code Quality
 black>=23.0.0

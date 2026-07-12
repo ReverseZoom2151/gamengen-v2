@@ -86,7 +86,7 @@ cd gameNgen-v2
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 
 # Install project dependencies
-pip install -r requirements.txt
+pip install -e '.[dev]'
 
 # Install development dependencies
 pip install -r requirements-dev.txt  # If available

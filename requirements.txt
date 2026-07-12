@@ -1,39 +1,4 @@
-# GameNGen - Tier 1 (Chrome Dino) Implementation
-# Core Dependencies
-
-# Deep Learning
-torch>=2.0.0
-torchvision>=0.15.0
-diffusers>=0.25.0
-transformers>=4.30.0
-accelerate>=0.20.0
-
-# RL Training
-gymnasium>=0.29.0
-stable-baselines3>=2.0.0
-tensorboard>=2.13.0
-
-# Game Environment
-selenium>=4.15.0
-Pillow>=10.0.0
-opencv-python>=4.8.0
-
-# Data Processing
-numpy>=1.24.0
-pandas>=2.0.0
-tqdm>=4.65.0
-
-# Metrics and Evaluation
-scikit-image>=0.21.0
-lpips>=0.1.4
-scipy>=1.10.0  # For FVD calculation
-
-# Utilities
-matplotlib>=3.7.0
-imageio>=2.31.0
-imageio-ffmpeg>=0.4.9
-wandb>=0.15.0  # Optional: for experiment tracking
-
-# Configuration
-pyyaml>=6.0
-omegaconf>=2.3.0
+# Legacy convenience file. pyproject.toml is the authoritative dependency map.
+# Install core runtime dependencies with: pip install .
+# Install optional game/metric integrations with: pip install '.[doom,dino,metrics]'
+.
