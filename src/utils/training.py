@@ -7,7 +7,7 @@ import json
 import platform
 import subprocess
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
@@ -54,7 +54,11 @@ def checkpoint_step(path: Path) -> int:
     return int(path.stem.removeprefix("checkpoint_step_"))
 
 
-def build_run_manifest(config: Dict[str, Any], data_dir: str | None = None) -> Dict[str, Any]:
+def build_run_manifest(
+    config: Dict[str, Any],
+    data_dir: str | None = None,
+    artifact_paths: Optional[Dict[str, str | Path]] = None,
+) -> Dict[str, Any]:
     """Capture the minimum provenance needed to interpret a training artifact."""
     serialized = json.dumps(config, sort_keys=True, default=str).encode("utf-8")
     try:
@@ -75,4 +79,8 @@ def build_run_manifest(config: Dict[str, Any], data_dir: str | None = None) -> D
         metadata = Path(data_dir) / "metadata.json"
         if metadata.is_file():
             manifest["data_metadata_sha256"] = hashlib.sha256(metadata.read_bytes()).hexdigest()
+    for name, path_value in (artifact_paths or {}).items():
+        path = Path(path_value)
+        if path.is_file():
+            manifest[f"{name}_sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
     return manifest

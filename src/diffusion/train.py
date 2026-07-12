@@ -91,7 +91,9 @@ def evaluate(model, dataloader, num_batches: int = 10) -> dict:
     return {"loss": total_loss / num_samples, "psnr": total_psnr / num_samples}
 
 
-def _checkpoint_payload(model, optimizer, scheduler, scaler, step: int, config: dict) -> dict:
+def _checkpoint_payload(
+    model, optimizer, scheduler, scaler, step: int, config: dict, split_manifest_path: Path
+) -> dict:
     return {
         "format_version": 2,
         "step": step,
@@ -105,7 +107,11 @@ def _checkpoint_payload(model, optimizer, scheduler, scaler, step: int, config: 
         "scheduler": scheduler.state_dict(),
         "scaler": scaler.state_dict(),
         "rng_state": capture_rng_state(),
-        "run_manifest": build_run_manifest(config, config.get("data_dir")),
+        "run_manifest": build_run_manifest(
+            config,
+            config.get("data_dir"),
+            {"validation_split": split_manifest_path},
+        ),
         "config": config,
     }
 
@@ -199,7 +205,10 @@ def train(config: dict) -> None:
                 writer.add_scalar("validation/loss", metrics["loss"], global_step)
                 writer.add_scalar("validation/psnr", metrics["psnr"], global_step)
             if global_step % save_every == 0 or global_step == diffusion["num_train_steps"]:
-                payload = _checkpoint_payload(model, optimizer, scheduler, scaler, global_step, config)
+                payload = _checkpoint_payload(
+                    model, optimizer, scheduler, scaler, global_step, config,
+                    output_dir / "validation_split.json",
+                )
                 checkpoint_file = output_dir / f"checkpoint_step_{global_step}.pt"
                 atomic_torch_save(payload, checkpoint_file)
                 atomic_torch_save(payload, latest)
