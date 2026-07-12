@@ -16,6 +16,15 @@ def test_fvd_requires_multiple_paired_videos_without_initializing_i3d():
         FVDCalculator.compute_fvd(calculator, torch.zeros(1, 1), torch.zeros(1, 1))
 
 
+def test_fvd_preprocess_preserves_batch_frame_channel_order():
+    calculator = object.__new__(FVDCalculator)
+    videos = torch.zeros(2, 3, 2, 4, 3)
+    videos[1, 2, :, :, 1] = 255
+    processed = calculator.preprocess_videos(videos)
+    assert processed.shape == (2, 3, 3, 224, 224)
+    assert torch.all(processed[1, 1, 2] == 1)
+
+
 def test_human_protocol_keeps_answer_key_out_of_public_file(tmp_path):
     framework = HumanEvaluationFramework(str(tmp_path))
     framework.create_evaluation_clips(["real.mp4"], ["fake.mp4"], num_clips_per_length=1)

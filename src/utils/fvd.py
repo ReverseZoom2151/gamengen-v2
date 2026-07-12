@@ -111,9 +111,13 @@ class FVDCalculator:
         Returns:
             preprocessed: (batch, channels, frames, height, width) in [-1, 1]
         """
+        if videos.ndim != 5:
+            raise ValueError("videos must have shape (batch, frames, height, width, channels)")
         # Permute to (batch, channels, frames, height, width)
         if videos.shape[-1] == 3:  # (B, T, H, W, C)
             videos = videos.permute(0, 4, 1, 2, 3)
+        if videos.shape[1] != 3:
+            raise ValueError("videos must contain three RGB channels")
 
         # Normalize to [-1, 1]
         videos = videos.float() / 127.5 - 1.0
@@ -121,11 +125,13 @@ class FVDCalculator:
         # Resize to 224x224 if needed (I3D expects this)
         if videos.shape[-2:] != (224, 224):
             batch, channels, frames, h, w = videos.shape
-            videos = videos.view(-1, channels, h, w)  # Flatten batch and frames
-            videos = torch.nn.functional.interpolate(
-                videos, size=(224, 224), mode="bilinear", align_corners=False
+            spatial_frames = videos.permute(0, 2, 1, 3, 4).reshape(
+                batch * frames, channels, h, w
             )
-            videos = videos.view(batch, channels, frames, 224, 224)
+            spatial_frames = torch.nn.functional.interpolate(
+                spatial_frames, size=(224, 224), mode="bilinear", align_corners=False
+            )
+            videos = spatial_frames.reshape(batch, frames, channels, 224, 224).permute(0, 2, 1, 3, 4)
 
         return videos
 
