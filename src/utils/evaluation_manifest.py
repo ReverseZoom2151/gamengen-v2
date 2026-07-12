@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import argparse
 from pathlib import Path
 
 from src.utils.data_recorder import load_npz_shard, shard_checksum
@@ -49,3 +50,13 @@ def validate_evaluation_manifest(path: str | Path, data_dir: str | Path) -> dict
         if shard_checksum(Path(data_dir) / name) != expected:
             raise ValueError(f"evaluation source checksum mismatch: {name}")
     return payload
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Create a checksum-bound GameNGen evaluation manifest")
+    parser.add_argument("--data-dir", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--limit", type=int)
+    args = parser.parse_args()
+    path = create_evaluation_manifest(args.data_dir, args.output, limit=args.limit)
+    print(f"Wrote immutable evaluation manifest: {path}")
