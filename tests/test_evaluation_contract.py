@@ -1,6 +1,6 @@
 import torch
 
-from src.utils.evaluation import GameNGenEvaluator
+from src.utils.evaluation import GameNGenEvaluator, save_evaluation_report
 
 
 def test_basic_metrics_work_without_optional_metric_models():
@@ -19,3 +19,10 @@ def test_batch_ssim_uses_each_frame_and_lpips_can_be_disabled(monkeypatch):
     assert metrics["ssim"] == 0.5
     assert len(observed) == 3
     assert "lpips" not in metrics
+
+
+def test_evaluation_report_is_atomic_and_provenance_linked(tmp_path):
+    path = save_evaluation_report(tmp_path / "report.json", {"psnr": 30.0}, {"config_sha256": "abc"})
+    assert path.is_file()
+    assert "config_sha256" in path.read_text()
+    assert not (tmp_path / "report.json.tmp").exists()

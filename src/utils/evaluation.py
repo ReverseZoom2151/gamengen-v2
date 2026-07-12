@@ -3,7 +3,11 @@ Comprehensive Evaluation Metrics for GameNGen
 Includes PSNR, LPIPS, SSIM, FVD as used in the paper
 """
 
-from typing import Dict
+import json
+import os
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, Mapping
 
 import numpy as np
 import torch
@@ -152,6 +156,22 @@ class GameNGenEvaluator:
             metrics["ssim"] = float(np.mean(scores))
 
         return metrics
+
+
+def save_evaluation_report(
+    path: str | Path, results: Mapping[str, Any], run_manifest: Mapping[str, Any]
+) -> Path:
+    """Atomically persist metrics with the provenance needed to interpret them."""
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"format_version": 1, "results": dict(results), "run_manifest": dict(run_manifest)}
+    with tempfile.NamedTemporaryFile(
+        dir=destination.parent, mode="w", encoding="utf-8", delete=False
+    ) as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        temporary = handle.name
+    os.replace(temporary, destination)
+    return destination
 
 
 def evaluate_model_comprehensive(

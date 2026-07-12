@@ -13,3 +13,6 @@ bit-identical continuation is not claimed for multi-worker or environment runs.
 Only report a benchmark with its immutable checkpoint, config, recording
 metadata, evaluator version, and generated outputs. Paper values are reference
 values unless a local artifact set proves otherwise.
+
+Use `save_evaluation_report` to write metric results atomically with their run
+manifest; do not rely on terminal output as an evaluation record.
