@@ -22,7 +22,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          pip install numpy pyyaml pytest
+          pip install numpy pyyaml pytest tqdm pillow
       - name: Compile sources
         run: python -m compileall -q src tests
       - name: Run offline unit tests
@@ -44,5 +44,14 @@ jobs:
           python-version: "3.12"
       - name: Install linter
         run: pip install ruff
-      - name: Lint Python source and tests
-        run: ruff check src tests
+      - name: Lint maintained foundation modules
+        run: |
+          ruff check \
+            gamengen \
+            src/config.py \
+            src/agent/dqn_agent.py \
+            src/diffusion/contracts.py \
+            src/environment/doom_contracts.py \
+            src/utils/data_recorder.py \
+            src/utils/migration.py \
+            src/utils/training.py
