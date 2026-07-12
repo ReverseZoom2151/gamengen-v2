@@ -153,6 +153,7 @@ def train(config: dict) -> None:
             data_dir=config["data_dir"], batch_size=diffusion["batch_size"], context_length=diffusion["context_length"],
             resolution=(config["environment"]["resolution"]["height"], config["environment"]["resolution"]["width"]),
             num_workers=config.get("num_workers", 4), validation_fraction=diffusion.get("validation_fraction", 0.05), seed=int(config.get("seed", 0)),
+            split_manifest_path=str(output_dir / "validation_split.json"),
         )
         use_amp = bool(config.get("mixed_precision", True) and device.type == "cuda")
         model = ActionConditionedDiffusionModel(

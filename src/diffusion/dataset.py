@@ -5,6 +5,9 @@ Loads recorded gameplay episodes and creates training samples
 
 import pickle
 import warnings
+import json
+import os
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -311,6 +314,7 @@ def create_dataloaders(
     num_workers: int = 4,
     validation_fraction: float = 0.05,
     seed: int = 0,
+    split_manifest_path: Optional[str] = None,
 ) -> Tuple[DataLoader, DataLoader]:
     """Create deterministic episode-disjoint train and validation loaders."""
     if not 0.0 < validation_fraction < 1.0:
@@ -322,17 +326,59 @@ def create_dataloaders(
     episode_keys = sorted(by_episode)
     if len(episode_keys) < 2:
         raise ValueError("at least two recorded episodes are required for a train/validation split")
-    rng = np.random.default_rng(seed)
-    rng.shuffle(episode_keys)
-    validation_count = min(len(episode_keys) - 1, max(1, round(len(episode_keys) * validation_fraction)))
-    validation_indices = [index for key in episode_keys[:validation_count] for index in by_episode[key]]
-    train_indices = [index for key in episode_keys[validation_count:] for index in by_episode[key]]
+    validation_keys, train_keys = _episode_split(
+        episode_keys, validation_fraction, seed, split_manifest_path
+    )
+    validation_indices = [index for key in validation_keys for index in by_episode[key]]
+    train_indices = [index for key in train_keys for index in by_episode[key]]
     generator = torch.Generator().manual_seed(seed)
     common = {"batch_size": batch_size, "num_workers": num_workers, "pin_memory": torch.cuda.is_available(), "persistent_workers": num_workers > 0}
     return (
         DataLoader(Subset(dataset, train_indices), shuffle=True, generator=generator, **common),
         DataLoader(Subset(dataset, validation_indices), shuffle=False, **common),
     )
+
+
+def _episode_split(
+    episode_keys: List[Tuple[int, int]],
+    validation_fraction: float,
+    seed: int,
+    split_manifest_path: Optional[str],
+) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int]]]:
+    """Load or atomically persist a deterministic episode-level split."""
+    all_keys = {f"{batch}:{episode}" for batch, episode in episode_keys}
+    if split_manifest_path and Path(split_manifest_path).is_file():
+        manifest = json.loads(Path(split_manifest_path).read_text(encoding="utf-8"))
+        validation = manifest.get("validation_episodes", [])
+        train = manifest.get("train_episodes", [])
+        if set(validation) | set(train) != all_keys or set(validation) & set(train):
+            raise ValueError("split manifest does not match the available episodes")
+        return (
+            [tuple(map(int, key.split(":"))) for key in validation],
+            [tuple(map(int, key.split(":"))) for key in train],
+        )
+
+    shuffled = list(episode_keys)
+    np.random.default_rng(seed).shuffle(shuffled)
+    validation_count = min(len(shuffled) - 1, max(1, round(len(shuffled) * validation_fraction)))
+    validation_keys, train_keys = shuffled[:validation_count], shuffled[validation_count:]
+    if split_manifest_path:
+        manifest_path = Path(split_manifest_path)
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "format_version": 1,
+            "seed": seed,
+            "validation_fraction": validation_fraction,
+            "validation_episodes": [f"{batch}:{episode}" for batch, episode in validation_keys],
+            "train_episodes": [f"{batch}:{episode}" for batch, episode in train_keys],
+        }
+        with tempfile.NamedTemporaryFile(
+            dir=manifest_path.parent, mode="w", encoding="utf-8", delete=False
+        ) as handle:
+            json.dump(payload, handle, indent=2, sort_keys=True)
+            temporary = handle.name
+        os.replace(temporary, manifest_path)
+    return validation_keys, train_keys
 
 
 def test_dataset(data_dir: str):

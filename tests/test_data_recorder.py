@@ -2,7 +2,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src.diffusion.dataset import GameplayDataset
+from src.diffusion.dataset import GameplayDataset, create_dataloaders
 import pytest
 
 from src.utils.data_recorder import DatasetLoader, EpisodeRecorder, load_npz_shard
@@ -104,3 +104,23 @@ def test_trusted_legacy_migration_creates_valid_npz_dataset(tmp_path: Path):
         pickle.dump([{"frames": [frame(1), frame(2)], "actions": [1], "rewards": [2.0]}], handle)
     assert migrate_legacy_pickles(str(source), str(target), trusted=True) == 1
     assert DatasetLoader(str(target)).load_batch(0)[0]["actions"].tolist() == [1]
+
+
+def test_episode_split_manifest_is_persisted_and_disjoint(tmp_path: Path):
+    recorder = EpisodeRecorder(str(tmp_path), save_frequency=3)
+    for offset in range(3):
+        add_episode(recorder, env_id=0, length=3, offset=offset * 10)
+    recorder.finalize()
+    manifest = tmp_path / "validation_split.json"
+    train, validation = create_dataloaders(
+        str(tmp_path), batch_size=1, context_length=2, resolution=(4, 6), num_workers=0,
+        validation_fraction=1 / 3, seed=9, split_manifest_path=str(manifest),
+    )
+    assert manifest.is_file()
+    assert set(train.dataset.indices).isdisjoint(validation.dataset.indices)
+    train_again, validation_again = create_dataloaders(
+        str(tmp_path), batch_size=1, context_length=2, resolution=(4, 6), num_workers=0,
+        validation_fraction=0.5, seed=999, split_manifest_path=str(manifest),
+    )
+    assert train.dataset.indices == train_again.dataset.indices
+    assert validation.dataset.indices == validation_again.dataset.indices
