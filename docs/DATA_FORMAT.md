@@ -15,3 +15,9 @@ local datasets explicitly:
 ```bash
 python -m src.utils.migration old_recordings new_recordings --trusted-legacy-input
 ```
+
+Before training, verify a corpus without loading model or game dependencies:
+
+```bash
+python -m src.utils.verify_recordings recordings
+```

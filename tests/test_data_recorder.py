@@ -7,6 +7,7 @@ import pytest
 
 from src.utils.data_recorder import DatasetLoader, EpisodeRecorder, load_npz_shard
 from src.utils.migration import migrate_legacy_pickles
+from src.utils.verify_recordings import verify_recordings
 
 
 def frame(value: int) -> np.ndarray:
@@ -159,3 +160,11 @@ def test_transition_metadata_is_retained_in_shard_manifest(tmp_path: Path):
     recorder.finalize()
     metadata = load_npz_shard(tmp_path / "shard_000000.npz")[0]["metadata"]
     assert metadata == {"scenario": "basic.cfg", "policy_step": 7}
+
+
+def test_recording_verifier_reports_valid_corpus_counts(tmp_path: Path):
+    recorder = EpisodeRecorder(str(tmp_path), save_frequency=2)
+    add_episode(recorder, env_id=0, length=2)
+    add_episode(recorder, env_id=0, length=3, offset=10)
+    recorder.finalize()
+    assert verify_recordings(str(tmp_path)) == {"episodes": 2, "frames": 7, "shards": 1}
