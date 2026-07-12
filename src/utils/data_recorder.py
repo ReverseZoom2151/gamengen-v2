@@ -3,18 +3,27 @@ Data Recording Utilities for GameNGen
 Records episodes with frames and actions for training diffusion model
 """
 
+import hashlib
 import json
+import os
 import pickle
+import tempfile
+import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import cv2
 import numpy as np
-from tqdm import tqdm
 
 
 class EpisodeRecorder:
-    """Records episodes with frames and actions"""
+    """Record isolated environment trajectories as atomic, versioned NPZ shards.
+
+    ``add_transition`` is the canonical API: an action takes ``observation`` to
+    ``next_observation``.  ``add_step`` remains as a deprecated compatibility
+    adapter for old callers that only stored pre-action observations.
+    """
+
+    SCHEMA_VERSION = 2
 
     def __init__(
         self,
@@ -28,82 +37,159 @@ class EpisodeRecorder:
         self.compress = compress
         self.save_frequency = save_frequency
 
-        # Current episode buffer
-        self.current_episode = {
-            "frames": [],
+        self._metadata_path = self.output_dir / "metadata.json"
+        self._load_existing_state()
+        self._episodes: Dict[int, Dict[str, Any]] = {}
+        self.batch_buffer: List[Dict[str, Any]] = []
+
+    def _load_existing_state(self) -> None:
+        metadata: Dict[str, Any] = {}
+        if self._metadata_path.exists():
+            with self._metadata_path.open("r", encoding="utf-8") as handle:
+                metadata = json.load(handle)
+
+        shard_ids = []
+        for path in self.output_dir.glob("shard_*.npz"):
+            try:
+                shard_ids.append(int(path.stem.split("_")[-1]))
+            except ValueError:
+                continue
+
+        self.episode_count = int(metadata.get("total_episodes", 0))
+        self.total_frames = int(metadata.get("total_frames", 0))
+        self.next_shard_id = max(shard_ids, default=-1) + 1
+        self.shard_checksums: Dict[str, str] = dict(metadata.get("shard_checksums", {}))
+
+    @staticmethod
+    def _new_episode(observation: np.ndarray, metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        return {
+            "frames": [np.asarray(observation, dtype=np.uint8)],
             "actions": [],
             "rewards": [],
-            "dones": [],
+            "terminated": [],
+            "truncated": [],
+            "metadata": dict(metadata or {}),
         }
 
-        # Statistics
-        self.episode_count = 0
-        self.total_frames = 0
+    def add_transition(
+        self,
+        observation: np.ndarray,
+        action: int,
+        reward: float,
+        next_observation: np.ndarray,
+        terminated: bool = False,
+        truncated: bool = False,
+        env_id: int = 0,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Record one canonical ``observation_t + action_t -> observation_t+1`` transition."""
 
-        # Batch buffer for efficient saving
-        self.batch_buffer = []
+        episode = self._episodes.setdefault(env_id, self._new_episode(observation, metadata))
+        if metadata:
+            episode["metadata"].update(metadata)
 
-    def add_step(self, frame: np.ndarray, action: int, reward: float, done: bool):
-        """Add single step to current episode"""
-        self.current_episode["frames"].append(frame)
-        self.current_episode["actions"].append(action)
-        self.current_episode["rewards"].append(reward)
-        self.current_episode["dones"].append(done)
+        episode["actions"].append(int(action))
+        episode["rewards"].append(float(reward))
+        episode["terminated"].append(bool(terminated))
+        episode["truncated"].append(bool(truncated))
+        episode["frames"].append(np.asarray(next_observation, dtype=np.uint8))
 
+        if terminated or truncated:
+            self.finish_episode(env_id)
+
+    def add_step(
+        self, frame: np.ndarray, action: int, reward: float, done: bool, env_id: int = 0
+    ) -> None:
+        """Deprecated compatibility adapter for pre-transition recording callers."""
+
+        warnings.warn(
+            "EpisodeRecorder.add_step is deprecated; use add_transition so action/frame timing is explicit.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        episode = self._episodes.get(env_id)
+        if episode is None:
+            episode = self._new_episode(frame, None)
+            self._episodes[env_id] = episode
+        else:
+            episode["frames"].append(np.asarray(frame, dtype=np.uint8))
+        episode["actions"].append(int(action))
+        episode["rewards"].append(float(reward))
+        episode["terminated"].append(bool(done))
+        episode["truncated"].append(False)
         if done:
-            self.finish_episode()
+            episode["frames"].append(np.asarray(frame, dtype=np.uint8))
+            self.finish_episode(env_id)
 
-    def finish_episode(self):
-        """Finish and save current episode"""
-        if len(self.current_episode["frames"]) == 0:
+    def finish_episode(self, env_id: int = 0, force: bool = False) -> None:
+        """Finish one environment's episode without affecting other environments."""
+
+        episode = self._episodes.pop(env_id, None)
+        if episode is None or not episode["actions"]:
             return
 
-        # Add to batch buffer
-        episode_data = {
-            "frames": np.array(self.current_episode["frames"], dtype=np.uint8),
-            "actions": np.array(self.current_episode["actions"], dtype=np.int32),
-            "rewards": np.array(self.current_episode["rewards"], dtype=np.float32),
-            "episode_id": self.episode_count,
-            "length": len(self.current_episode["frames"]),
-        }
+        if len(episode["frames"]) != len(episode["actions"]) + 1:
+            if not force:
+                raise ValueError("canonical episodes require one more frame than actions")
+            episode["frames"].append(episode["frames"][-1].copy())
 
-        self.batch_buffer.append(episode_data)
+        episode["episode_id"] = self.episode_count
+        episode["env_id"] = env_id
+        episode["length"] = len(episode["actions"])
+        self.batch_buffer.append(episode)
         self.episode_count += 1
-        self.total_frames += len(self.current_episode["frames"])
+        self.total_frames += len(episode["frames"])
 
-        # Save batch if frequency reached
         if len(self.batch_buffer) >= self.save_frequency:
             self._save_batch()
-
-        # Reset current episode
-        self.current_episode = {
-            "frames": [],
-            "actions": [],
-            "rewards": [],
-            "dones": [],
-        }
 
     def _save_batch(self):
         """Save batch of episodes to disk"""
         if len(self.batch_buffer) == 0:
             return
 
-        batch_id = self.episode_count // self.save_frequency
-        filename = self.output_dir / f"batch_{batch_id:06d}.pkl"
+        shard_id = self.next_shard_id
+        filename = self.output_dir / f"shard_{shard_id:06d}.npz"
+        arrays: Dict[str, np.ndarray] = {}
+        manifest = {"schema_version": self.SCHEMA_VERSION, "episodes": []}
 
-        # Save as pickle
-        with open(filename, "wb") as f:
-            pickle.dump(self.batch_buffer, f)
+        for index, episode in enumerate(self.batch_buffer):
+            prefix = f"episode_{index:06d}"
+            arrays[f"{prefix}_frames"] = np.stack(episode["frames"]).astype(np.uint8, copy=False)
+            arrays[f"{prefix}_actions"] = np.asarray(episode["actions"], dtype=np.int32)
+            arrays[f"{prefix}_rewards"] = np.asarray(episode["rewards"], dtype=np.float32)
+            arrays[f"{prefix}_terminated"] = np.asarray(episode["terminated"], dtype=np.bool_)
+            arrays[f"{prefix}_truncated"] = np.asarray(episode["truncated"], dtype=np.bool_)
+            manifest["episodes"].append(
+                {
+                    "prefix": prefix,
+                    "episode_id": episode["episode_id"],
+                    "env_id": episode["env_id"],
+                    "length": episode["length"],
+                    "metadata": episode["metadata"],
+                }
+            )
 
-        print(
-            f"Saved batch {batch_id} with {len(self.batch_buffer)} episodes to {filename}"
-        )
+        arrays["_manifest"] = np.asarray(json.dumps(manifest, sort_keys=True))
+        with tempfile.NamedTemporaryFile(dir=self.output_dir, suffix=".npz", delete=False) as handle:
+            temporary_path = Path(handle.name)
+            np.savez_compressed(handle, **arrays) if self.compress else np.savez(handle, **arrays)
+        os.replace(temporary_path, filename)
+        checksum = hashlib.sha256(filename.read_bytes()).hexdigest()
+        self.shard_checksums[filename.name] = checksum
+        self.next_shard_id += 1
+
+        print(f"Saved shard {shard_id} with {len(self.batch_buffer)} episodes to {filename}")
 
         # Clear buffer
         self.batch_buffer = []
 
     def finalize(self):
         """Save remaining data and create metadata"""
+        # Explicitly flush unfinished episodes rather than silently losing them.
+        for env_id in list(self._episodes):
+            self.finish_episode(env_id, force=True)
+
         # Save remaining episodes
         if len(self.batch_buffer) > 0:
             self._save_batch()
@@ -112,113 +198,95 @@ class EpisodeRecorder:
         metadata = {
             "total_episodes": self.episode_count,
             "total_frames": self.total_frames,
-            "save_frequency": self.save_frequency,
+            "schema_version": self.SCHEMA_VERSION,
+            "episodes_per_shard": self.save_frequency,
             "compressed": self.compress,
+            "next_shard_id": self.next_shard_id,
+            "shard_checksums": self.shard_checksums,
+            "format": "npz",
         }
 
-        metadata_path = self.output_dir / "metadata.json"
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f, indent=2)
+        with tempfile.NamedTemporaryFile(dir=self.output_dir, suffix=".json", mode="w", delete=False) as handle:
+            json.dump(metadata, handle, indent=2, sort_keys=True)
+            temporary_path = Path(handle.name)
+        os.replace(temporary_path, self._metadata_path)
 
         print(f"\nRecording complete!")
         print(f"Total episodes: {self.episode_count}")
         print(f"Total frames: {self.total_frames}")
-        print(f"Metadata saved to: {metadata_path}")
+        print(f"Metadata saved to: {self._metadata_path}")
+
+
+def load_npz_shard(path: Path) -> List[Dict[str, Any]]:
+    """Load a versioned NPZ recorder shard without pickle deserialization."""
+
+    with np.load(path, allow_pickle=False) as data:
+        manifest = json.loads(str(data["_manifest"].item()))
+        if manifest.get("schema_version") != EpisodeRecorder.SCHEMA_VERSION:
+            raise ValueError(f"unsupported recorder schema in {path}")
+        episodes = []
+        for item in manifest["episodes"]:
+            prefix = item["prefix"]
+            episode = {
+                "frames": data[f"{prefix}_frames"].copy(),
+                "actions": data[f"{prefix}_actions"].copy(),
+                "rewards": data[f"{prefix}_rewards"].copy(),
+                "terminated": data[f"{prefix}_terminated"].copy(),
+                "truncated": data[f"{prefix}_truncated"].copy(),
+                "episode_id": item["episode_id"],
+                "env_id": item["env_id"],
+                "length": item["length"],
+                "metadata": item.get("metadata", {}),
+            }
+            episodes.append(episode)
+    return episodes
 
 
 class DatasetLoader:
-    """Load recorded episodes for training"""
+    """Load versioned NPZ recordings, with warned support for legacy pickles."""
 
-    def __init__(self, data_dir: str):
+    def __init__(self, data_dir: str, allow_legacy_pickle: bool = True):
         self.data_dir = Path(data_dir)
 
-        # Load metadata
         metadata_path = self.data_dir / "metadata.json"
         if metadata_path.exists():
-            with open(metadata_path, "r") as f:
-                self.metadata = json.load(f)
+            with metadata_path.open("r", encoding="utf-8") as handle:
+                self.metadata = json.load(handle)
         else:
             self.metadata = {}
 
-        # Find all batch files
+        self.shard_files = sorted(self.data_dir.glob("shard_*.npz"))
         self.batch_files = sorted(self.data_dir.glob("batch_*.pkl"))
-        print(f"Found {len(self.batch_files)} batch files")
+        if self.batch_files and not allow_legacy_pickle:
+            raise ValueError("legacy pickle recordings require allow_legacy_pickle=True")
+        if self.batch_files:
+            warnings.warn("loading legacy pickle recordings; migrate them before training", RuntimeWarning)
+        print(f"Found {len(self.shard_files)} NPZ shards and {len(self.batch_files)} legacy batches")
 
     def load_batch(self, batch_idx: int) -> List[Dict[str, Any]]:
-        """Load specific batch"""
-        if batch_idx >= len(self.batch_files):
-            raise IndexError(f"Batch {batch_idx} not found")
-
-        with open(self.batch_files[batch_idx], "rb") as f:
-            batch = pickle.load(f)
-
-        return batch
+        sources = self.shard_files + self.batch_files
+        if batch_idx >= len(sources):
+            raise IndexError(f"batch {batch_idx} not found")
+        path = sources[batch_idx]
+        if path.suffix == ".npz":
+            return load_npz_shard(path)
+        with path.open("rb") as handle:
+            return pickle.load(handle)
 
     def iter_episodes(self, shuffle: bool = False):
-        """Iterate over all episodes"""
-        batch_indices = list(range(len(self.batch_files)))
-
+        batch_indices = list(range(len(self.shard_files) + len(self.batch_files)))
         if shuffle:
             np.random.shuffle(batch_indices)
-
         for batch_idx in batch_indices:
             batch = self.load_batch(batch_idx)
-
             if shuffle:
                 np.random.shuffle(batch)
-
-            for episode in batch:
-                yield episode
-
-    def create_trajectory_dataset(
-        self, context_length: int = 32, output_file: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Create dataset of trajectories for diffusion model training
-
-        Each trajectory contains:
-        - context_frames: (context_length, H, W, C)
-        - context_actions: (context_length,)
-        - target_frame: (H, W, C)
-        - target_action: int
-        """
-        trajectories = []
-
-        print(f"Creating trajectory dataset with context length {context_length}...")
-
-        for episode in tqdm(self.iter_episodes()):
-            frames = episode["frames"]
-            actions = episode["actions"]
-
-            # Create trajectories from this episode
-            for i in range(context_length, len(frames)):
-                trajectory = {
-                    "context_frames": frames[i - context_length : i],
-                    "context_actions": actions[i - context_length : i],
-                    "target_frame": frames[i],
-                    "target_action": actions[i],
-                    "episode_id": episode["episode_id"],
-                }
-
-                trajectories.append(trajectory)
-
-        print(f"Created {len(trajectories)} trajectories")
-
-        # Save if requested
-        if output_file:
-            output_path = Path(output_file)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-
-            with open(output_path, "wb") as f:
-                pickle.dump(trajectories, f)
-
-            print(f"Saved trajectories to {output_path}")
-
-        return trajectories
+            yield from batch
 
 
 def visualize_episode(episode: Dict[str, Any], output_path: Optional[str] = None):
     """Visualize an episode as video"""
+    import cv2
     import imageio
 
     frames = episode["frames"]

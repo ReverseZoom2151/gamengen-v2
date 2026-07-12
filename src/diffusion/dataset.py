@@ -4,6 +4,7 @@ Loads recorded gameplay episodes and creates training samples
 """
 
 import pickle
+import warnings
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -11,6 +12,8 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
+
+from src.utils.data_recorder import load_npz_shard
 
 
 class GameplayDataset(Dataset):
@@ -57,13 +60,18 @@ class GameplayDataset(Dataset):
         else:
             self.metadata = {}
 
-        # Find all batch files
+        # New recordings use safe, versioned NPZ shards. Legacy pickle batches are
+        # supported only to make existing local experiments migratable.
+        self.shard_files = sorted(self.data_dir.glob("shard_*.npz"))
         self.batch_files = sorted(self.data_dir.glob("batch_*.pkl"))
+        self.source_files = self.shard_files + self.batch_files
 
-        if len(self.batch_files) == 0:
-            raise ValueError(f"No batch files found in {self.data_dir}")
+        if len(self.source_files) == 0:
+            raise ValueError(f"No NPZ shards or legacy batch files found in {self.data_dir}")
+        if self.batch_files:
+            warnings.warn("using legacy pickle recordings; migrate to NPZ shards", RuntimeWarning)
 
-        print(f"Found {len(self.batch_files)} batch files")
+        print(f"Found {len(self.shard_files)} NPZ shards and {len(self.batch_files)} legacy batches")
 
         # Create trajectory index
         print("Creating trajectory index...")
@@ -86,10 +94,9 @@ class GameplayDataset(Dataset):
         """
         trajectories = []
 
-        for batch_idx, batch_file in enumerate(tqdm(self.batch_files, desc="Indexing")):
+        for batch_idx, batch_file in enumerate(tqdm(self.source_files, desc="Indexing")):
             # Load batch
-            with open(batch_file, "rb") as f:
-                batch = pickle.load(f)
+            batch = self._load_source(batch_idx)
 
             # Process each episode in batch
             for episode_idx, episode in enumerate(batch):
@@ -128,10 +135,7 @@ class GameplayDataset(Dataset):
         if cache_key in self.cache:
             return self.cache[cache_key]
 
-        # Load from disk
-        batch_file = self.batch_files[batch_idx]
-        with open(batch_file, "rb") as f:
-            batch = pickle.load(f)
+        batch = self._load_source(batch_idx)
 
         episode = batch[episode_idx]
 
@@ -140,6 +144,15 @@ class GameplayDataset(Dataset):
             self.cache[cache_key] = episode
 
         return episode
+
+    def _load_source(self, source_idx: int) -> List[Dict]:
+        """Load one recorder source, preferring the safe NPZ schema."""
+
+        path = self.source_files[source_idx]
+        if path.suffix == ".npz":
+            return load_npz_shard(path)
+        with path.open("rb") as handle:
+            return pickle.load(handle)
 
     def _cache_all_data(self):
         """Cache all episodes in memory"""
@@ -160,6 +173,15 @@ class GameplayDataset(Dataset):
         Returns:
             (3, H, W) torch tensor, values in [0, 255] float32
         """
+        if frame.ndim != 3:
+            raise ValueError(f"expected a 3D frame, received shape {frame.shape}")
+        if frame.shape[0] in (1, 3, 4) and frame.shape[-1] not in (1, 3, 4):
+            frame = np.moveaxis(frame, 0, -1)
+        if frame.shape[-1] == 4:
+            frame = frame[..., :3]
+        if frame.shape[-1] != 3:
+            raise ValueError(f"expected RGB frame, received shape {frame.shape}")
+
         # Convert to tensor
         frame = torch.from_numpy(frame).float()
 
@@ -208,7 +230,9 @@ class GameplayDataset(Dataset):
 
         # Get target frame and action
         target_frame = frames[end_idx]
-        target_action = actions[end_idx]
+        # The final context action produces the target frame.  Legacy datasets
+        # can contain an action at end_idx; it is deliberately not used here.
+        target_action = actions[end_idx - 1]
 
         # Preprocess frames
         context_frames = torch.stack(

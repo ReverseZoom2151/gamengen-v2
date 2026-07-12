@@ -113,7 +113,15 @@ def train_dqn_agent(config: dict):
             done = terminated or truncated
 
             # Record step
-            recorder.add_step(state, action, reward, done)
+            recorder.add_transition(
+                observation=state,
+                action=action,
+                reward=reward,
+                next_observation=next_state,
+                terminated=terminated,
+                truncated=truncated,
+                metadata={"environment": "chrome_dino"},
+            )
 
             # Store transition
             agent.store_transition(state, action, reward, next_state, done)

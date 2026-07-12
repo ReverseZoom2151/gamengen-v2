@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gamengen"
+version = "0.2.0"
+description = "Research implementation of an action-conditioned neural game engine"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "GameNGen Implementation" }]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+  "accelerate>=0.20",
+  "diffusers>=0.25",
+  "gymnasium>=0.29",
+  "imageio>=2.31",
+  "imageio-ffmpeg>=0.4.9",
+  "numpy>=1.24",
+  "omegaconf>=2.3",
+  "opencv-python>=4.8",
+  "pillow>=10",
+  "pyyaml>=6",
+  "scikit-image>=0.21",
+  "stable-baselines3>=2",
+  "tensorboard>=2.13",
+  "torch>=2",
+  "torchvision>=0.15",
+  "tqdm>=4.65",
+  "transformers>=4.30",
+]
+
+[project.optional-dependencies]
+doom = ["vizdoom>=1.2"]
+dino = ["selenium>=4.15"]
+metrics = ["lpips>=0.1.4", "scipy>=1.10"]
+tracking = ["wandb>=0.15"]
+dev = ["build>=1", "pytest>=7.3", "pytest-cov>=4.1", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+  "gpu: requires a CUDA-capable PyTorch installation",
+  "integration: requires an optional game environment or model artifact",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E203"]
