@@ -52,6 +52,7 @@ gamengen-dino = "src.agent.train_dqn:main"
 gamengen-doom = "src.agent.train_ppo_doom:main"
 gamengen-cache-latents = "src.diffusion.latent_cache:main"
 gamengen-create-eval-manifest = "src.utils.evaluation_manifest:main"
+gamengen-plan-ablations = "src.utils.experiment_plan:main"
 
 [tool.setuptools.packages.find]
 include = ["gamengen", "src*"]

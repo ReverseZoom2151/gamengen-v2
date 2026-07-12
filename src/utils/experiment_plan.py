@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import argparse
 from pathlib import Path
 from typing import Iterable
 
@@ -57,3 +58,15 @@ def save_experiment_plan(path: str | Path, plans: list[dict]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"format_version": 1, "experiments": entries}, indent=2, sort_keys=True), encoding="utf-8")
     return path
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Create reproducible GameNGen ablation plans")
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--kind", choices=("context", "noise"), required=True)
+    args = parser.parse_args()
+    from src.config import load_config
+    config = load_config(args.config)
+    plans = context_length_ablation(config) if args.kind == "context" else noise_ablation(config)
+    print(f"Wrote experiment plan: {save_experiment_plan(args.output, plans)}")
