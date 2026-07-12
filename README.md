@@ -1,6 +1,7 @@
-# GameNGen
-
-<p align="center"><img src="doom-guy.gif" width="64" alt="DOOM Guy"></p>
+<h1 align="center">
+  <img src="doom-guy.gif" width="48" alt="DOOM Guy">
+  GameNGen: Neural Game Engine Research Implementation
+</h1>
 
 An in-progress, test-driven research implementation inspired by the ICLR 2025
 paper [*Diffusion Models Are Real-Time Game Engines*](https://arxiv.org/abs/2408.14837).
