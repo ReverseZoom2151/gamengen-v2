@@ -13,14 +13,10 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import yaml
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.diffusion.dataset import create_dataloader
-from src.diffusion.model import ActionConditionedDiffusionModel
 
 
 class DistillationTrainer:
@@ -89,6 +85,8 @@ class DistillationTrainer:
 
     def _create_model(self):
         """Create a model instance"""
+        from src.diffusion.model import ActionConditionedDiffusionModel
+
         return ActionConditionedDiffusionModel(
             pretrained_model_name=self.config["diffusion"]["pretrained_model"],
             num_actions=self.config["environment"].get("num_actions", 3),
@@ -277,7 +275,18 @@ class DistillationTrainer:
 
 
 def distill_model(config: dict):
-    """Main distillation training loop"""
+    """Main distillation training loop.
+
+    The historical implementation returned clean target latents as a fake
+    teacher target and invoked the generator in place of the fake-score model.
+    That cannot produce a valid Appendix A.6 distilled model, so this command
+    is deliberately quarantined until the three-network objective and rollout
+    fixtures are implemented and validated.
+    """
+    raise NotImplementedError(
+        "one-step distillation is not validated; do not use this command for "
+        "training or performance claims"
+    )
 
     device = config.get("device", "cuda")
     distill_config = config["distillation"]
@@ -389,8 +398,9 @@ def main():
     args = parser.parse_args()
 
     # Load config
-    with open(args.config, "r") as f:
-        config = yaml.safe_load(f)
+    from src.config import load_config
+
+    config = load_config(args.config)
 
     # Set teacher checkpoint
     if "distillation" not in config:

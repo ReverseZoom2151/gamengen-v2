@@ -11,7 +11,7 @@ This document distinguishes implemented code from validated functionality.
 | ViZDoom PPO collection | In repair | Transition isolation is implemented; action/reward/scenario fidelity remains work in progress |
 | Stable Diffusion training | In repair | Configured optimizer/scheduler/accumulation, episode-held-out validation, and resumable checkpoints are implemented; no reproduced checkpoint exists |
 | Decoder fine-tuning | Experimental | Artifacts are provenance-tagged and loadable; end-to-end evaluation remains incomplete |
-| Distillation | Experimental / unavailable | Do not use for research claims |
+| Distillation | Quarantined / unavailable | Command fails explicitly; do not use for research claims |
 | FVD | Experimental / unavailable | Current implementation is not paper-comparable |
 | Human evaluation | Experimental / unavailable | Current implementation is not a blinded study tool |
 | Hierarchical memory | Experimental / unavailable | It requires a trained conditioning path |
