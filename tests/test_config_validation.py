@@ -77,3 +77,10 @@ def test_validate_config_rejects_unknown_environment_or_incompatible_agent():
     invalid_agent["agent"]["algorithm"] = "DQN"
     with pytest.raises(ConfigError, match="vizdoom"):
         validate_config(invalid_agent)
+
+
+def test_validate_config_rejects_enabled_zero_noise_augmentation():
+    config = valid_config()
+    config["diffusion"]["noise_augmentation"] = {"enabled": True, "num_buckets": 2, "max_noise_level": 0}
+    with pytest.raises(ConfigError, match="must be positive"):
+        validate_config(config)

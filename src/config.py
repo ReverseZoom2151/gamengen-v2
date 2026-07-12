@@ -128,6 +128,8 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
             raise ConfigError("diffusion.noise_augmentation.num_buckets must be positive")
         if "max_noise_level" in noise and (not isinstance(noise["max_noise_level"], Real) or not 0 <= noise["max_noise_level"] <= 1):
             raise ConfigError("diffusion.noise_augmentation.max_noise_level must be between 0 and 1")
+        if noise.get("enabled", True) and noise.get("max_noise_level", 0) <= 0:
+            raise ConfigError("enabled diffusion.noise_augmentation.max_noise_level must be positive")
 
     if "action_repeat" in environment and (not isinstance(environment["action_repeat"], int) or environment["action_repeat"] <= 0):
         raise ConfigError("environment.action_repeat must be a positive integer")
