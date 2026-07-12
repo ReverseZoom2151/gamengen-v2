@@ -40,3 +40,23 @@ def test_load_config_reads_repository_tier_config():
     config_path = Path(__file__).parents[1] / "configs" / "tier1_chrome_dino.yaml"
     config = load_config(str(config_path))
     assert config["diffusion"]["context_length"] == 32
+
+
+@pytest.mark.parametrize("config_name", ["tier1_chrome_dino.yaml", "tier2_doom_lite.yaml", "tier3_full_doom.yaml"])
+def test_all_repository_tiers_are_semantically_valid(config_name):
+    config_path = Path(__file__).parents[1] / "configs" / config_name
+    assert load_config(str(config_path))["project_name"].startswith("gamengen")
+
+
+def test_validate_config_rejects_incompatible_resolution():
+    config = valid_config()
+    config["diffusion"]["resolution"] = {"width": 4, "height": 8}
+    with pytest.raises(ConfigError, match="must match"):
+        validate_config(config)
+
+
+def test_validate_config_rejects_unknown_scheduler():
+    config = valid_config()
+    config["diffusion"]["lr_scheduler"] = "magic"
+    with pytest.raises(ConfigError, match="lr_scheduler"):
+        validate_config(config)

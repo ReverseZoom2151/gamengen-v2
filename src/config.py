@@ -1,6 +1,7 @@
 """Validated configuration loading shared by command-line entry points."""
 
 from pathlib import Path
+from numbers import Real
 from typing import Any, Dict, Iterable
 
 import yaml
@@ -38,6 +39,19 @@ def _require(mapping: Dict[str, Any], keys: Iterable[str], context: str) -> None
     missing = [key for key in keys if key not in mapping]
     if missing:
         raise ConfigError(f"{context} is missing required keys: {', '.join(missing)}")
+
+
+def _coerce_nonnegative_number(mapping: Dict[str, Any], key: str, context: str) -> None:
+    """Normalize YAML scientific-notation strings and reject invalid values."""
+    value = mapping[key]
+    if isinstance(value, str):
+        try:
+            value = float(value)
+        except ValueError as error:
+            raise ConfigError(f"{context}.{key} must be non-negative") from error
+        mapping[key] = value
+    if isinstance(value, bool) or not isinstance(value, Real) or value < 0:
+        raise ConfigError(f"{context}.{key} must be non-negative")
 
 
 def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -82,6 +96,39 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         raise ConfigError("environment.num_actions must be a positive integer")
     if not isinstance(diffusion["context_length"], int) or diffusion["context_length"] <= 0:
         raise ConfigError("diffusion.context_length must be a positive integer")
+
+    diffusion_resolution = diffusion.get("resolution")
+    if diffusion_resolution is not None:
+        if not isinstance(diffusion_resolution, dict):
+            raise ConfigError("diffusion.resolution must be a mapping")
+        _require(diffusion_resolution, ("width", "height"), "diffusion.resolution")
+        if diffusion_resolution != resolution:
+            raise ConfigError("diffusion.resolution must match environment.resolution")
+
+    for key in ("batch_size", "gradient_accumulation_steps", "num_train_steps", "save_every_n_steps", "eval_every_n_steps", "keep_last_n_checkpoints", "warmup_steps"):
+        if key in diffusion and (not isinstance(diffusion[key], int) or diffusion[key] < 0 or (key not in {"warmup_steps", "keep_last_n_checkpoints"} and diffusion[key] == 0)):
+            raise ConfigError(f"diffusion.{key} must be a valid non-negative integer")
+    for key in ("learning_rate", "gradient_clip", "weight_decay", "cfg_drop_prob", "cfg_scale"):
+        if key in diffusion:
+            _coerce_nonnegative_number(diffusion, key, "diffusion")
+    if "cfg_drop_prob" in diffusion and diffusion["cfg_drop_prob"] > 1:
+        raise ConfigError("diffusion.cfg_drop_prob must be between 0 and 1")
+    if "optimizer" in diffusion and diffusion["optimizer"].lower() not in {"adamw", "adafactor"}:
+        raise ConfigError("diffusion.optimizer must be AdamW or Adafactor")
+    if "lr_scheduler" in diffusion and diffusion["lr_scheduler"].lower() not in {"constant", "linear", "cosine"}:
+        raise ConfigError("diffusion.lr_scheduler must be constant, linear, or cosine")
+
+    noise = diffusion.get("noise_augmentation")
+    if noise is not None:
+        if not isinstance(noise, dict):
+            raise ConfigError("diffusion.noise_augmentation must be a mapping")
+        if "num_buckets" in noise and (not isinstance(noise["num_buckets"], int) or noise["num_buckets"] <= 0):
+            raise ConfigError("diffusion.noise_augmentation.num_buckets must be positive")
+        if "max_noise_level" in noise and (not isinstance(noise["max_noise_level"], Real) or not 0 <= noise["max_noise_level"] <= 1):
+            raise ConfigError("diffusion.noise_augmentation.max_noise_level must be between 0 and 1")
+
+    if "action_repeat" in environment and (not isinstance(environment["action_repeat"], int) or environment["action_repeat"] <= 0):
+        raise ConfigError("environment.action_repeat must be a positive integer")
 
     if config.get("mixed_precision") and config.get("device") == "cpu":
         raise ConfigError("mixed_precision cannot be enabled when device is explicitly cpu")
