@@ -124,3 +124,15 @@ def test_episode_split_manifest_is_persisted_and_disjoint(tmp_path: Path):
     )
     assert train.dataset.indices == train_again.dataset.indices
     assert validation.dataset.indices == validation_again.dataset.indices
+
+
+def test_dataset_keeps_a_bounded_decoded_source_cache(tmp_path: Path):
+    recorder = EpisodeRecorder(str(tmp_path), save_frequency=1)
+    add_episode(recorder, env_id=0, length=3)
+    add_episode(recorder, env_id=0, length=3, offset=10)
+    recorder.finalize()
+    dataset = GameplayDataset(str(tmp_path), context_length=2, resolution=(4, 6), source_cache_size=1)
+    first = dataset._load_source(0)
+    assert first is dataset._load_source(0)
+    dataset._load_source(1)
+    assert list(dataset._source_cache) == [1]

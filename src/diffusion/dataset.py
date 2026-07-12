@@ -8,6 +8,7 @@ import warnings
 import json
 import os
 import tempfile
+from collections import OrderedDict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -37,6 +38,7 @@ class GameplayDataset(Dataset):
         resolution: Tuple[int, int] = (256, 512),  # (H, W)
         max_trajectories: Optional[int] = None,
         cache_in_memory: bool = False,
+        source_cache_size: int = 2,
     ):
         """
         Args:
@@ -45,12 +47,17 @@ class GameplayDataset(Dataset):
             resolution: Target resolution (H, W)
             max_trajectories: Maximum number of trajectories to load
             cache_in_memory: Whether to cache all data in RAM
+            source_cache_size: Number of decoded source shards retained per worker
         """
         self.data_dir = Path(data_dir)
         self.context_length = context_length
         self.resolution = resolution
         self.max_trajectories = max_trajectories
         self.cache_in_memory = cache_in_memory
+        if source_cache_size < 0:
+            raise ValueError("source_cache_size must be non-negative")
+        self.source_cache_size = source_cache_size
+        self._source_cache: OrderedDict[int, List[Dict]] = OrderedDict()
 
         # Load metadata if available
         metadata_path = self.data_dir / "metadata.json"
@@ -154,11 +161,22 @@ class GameplayDataset(Dataset):
     def _load_source(self, source_idx: int) -> List[Dict]:
         """Load one recorder source, preferring the safe NPZ schema."""
 
+        if source_idx in self._source_cache:
+            self._source_cache.move_to_end(source_idx)
+            return self._source_cache[source_idx]
+
         path = self.source_files[source_idx]
         if path.suffix == ".npz":
-            return load_npz_shard(path, self.metadata.get("shard_checksums", {}).get(path.name))
-        with path.open("rb") as handle:
-            return pickle.load(handle)
+            source = load_npz_shard(path, self.metadata.get("shard_checksums", {}).get(path.name))
+        else:
+            with path.open("rb") as handle:
+                source = pickle.load(handle)
+        if self.source_cache_size:
+            self._source_cache[source_idx] = source
+            self._source_cache.move_to_end(source_idx)
+            while len(self._source_cache) > self.source_cache_size:
+                self._source_cache.popitem(last=False)
+        return source
 
     def _cache_all_data(self):
         """Cache all episodes in memory"""
