@@ -38,6 +38,7 @@ venv.bak/
 data/recordings/
 data/recordings_doom/
 data/recordings_doom_full/
+data/latents/
 checkpoints/
 checkpoints_doom/
 checkpoints_doom_full/
@@ -72,6 +73,7 @@ models/
 *.avi
 *.mov
 output/
+artifacts/
 
 # Test outputs
 test_recordings/
@@ -87,6 +89,7 @@ project_structure.txt
 project_tree.txt
 
 # Keep empty directories
+!data/recordings/
 !data/recordings/.gitkeep
 !checkpoints/.gitkeep
 !logs/.gitkeep

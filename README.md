@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="doom-guy.gif" width="48" alt="DOOM Guy">
+  <img src="assets/branding/doom-guy.gif" width="48" alt="DOOM Guy">
   GameNGen
 </h1>
 
@@ -99,6 +99,7 @@ gamengen-plan-ablations --config configs/tier3_full_doom.yaml \
 - [ViZDoom integration](docs/VIZDOOM_INTEGRATION.md)
 - [Human evaluation](docs/HUMAN_EVALUATION.md)
 - [Reproducibility](docs/REPRODUCIBILITY.md) and [security policy](docs/SECURITY.md)
+- [Workspace layout](docs/WORKSPACE_LAYOUT.md)
 
 ## Contributing
 
