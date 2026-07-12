@@ -7,7 +7,6 @@ Based on paper Section 5.1: "We measure the FVD"
 import numpy as np
 import torch
 import torch.nn as nn
-from scipy.linalg import sqrtm
 
 
 class I3D(nn.Module):
@@ -160,6 +159,10 @@ class FVDCalculator:
         Returns:
             fvd: Fréchet Video Distance score
         """
+        try:
+            from scipy.linalg import sqrtm
+        except ImportError as error:
+            raise RuntimeError("FVD computation requires the optional scipy metrics dependency") from error
         if len(real_videos) != len(fake_videos) or len(real_videos) < 2:
             raise ValueError("FVD requires equally sized real/fake sets with at least two videos")
         # Extract features in batches
