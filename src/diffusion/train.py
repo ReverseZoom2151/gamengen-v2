@@ -96,11 +96,13 @@ def evaluate(model, dataloader, num_batches: int = 10) -> dict:
 
 
 def _checkpoint_payload(
-    model, optimizer, scheduler, scaler, step: int, config: dict, split_manifest_path: Path
+    model, optimizer, scheduler, scaler, step: int, config: dict, split_manifest_path: Path,
+    best_validation_loss: float,
 ) -> dict:
     return {
         "format_version": 2,
         "step": step,
+        "best_validation_loss": best_validation_loss,
         "model": {
             "unet": model.unet.state_dict(),
             "action_embedding": model.action_embedding.state_dict(),
@@ -120,7 +122,7 @@ def _checkpoint_payload(
     }
 
 
-def _restore_checkpoint(path: Path, model, optimizer, scheduler, scaler, device: torch.device) -> int:
+def _restore_checkpoint(path: Path, model, optimizer, scheduler, scaler, device: torch.device) -> tuple[int, float]:
     checkpoint = torch.load(path, map_location=device, weights_only=False)
     model_state = model_state_from_checkpoint(checkpoint)
     for name in ("unet", "noise_aug_embedding", "action_proj"):
@@ -134,7 +136,7 @@ def _restore_checkpoint(path: Path, model, optimizer, scheduler, scaler, device:
         scaler.load_state_dict(checkpoint["scaler"])
     if "rng_state" in checkpoint:
         restore_rng_state(checkpoint["rng_state"])
-    return int(checkpoint["step"])
+    return int(checkpoint["step"]), float(checkpoint.get("best_validation_loss", float("inf")))
 
 
 def _next_batch(iterator: Iterator, dataloader):
@@ -180,7 +182,11 @@ def train(config: dict) -> None:
         scheduler = make_scheduler(optimizer, diffusion.get("lr_scheduler", "constant"), diffusion.get("warmup_steps", 0), diffusion["num_train_steps"])
         scaler = GradScaler("cuda", enabled=use_amp)
         latest = output_dir / "latest_checkpoint.pt"
-        global_step = _restore_checkpoint(latest, model, optimizer, scheduler, scaler, device) if latest.exists() else 0
+        global_step, best_validation_loss = (
+            _restore_checkpoint(latest, model, optimizer, scheduler, scaler, device)
+            if latest.exists()
+            else (0, float("inf"))
+        )
         accumulation = max(1, int(diffusion.get("gradient_accumulation_steps", 1)))
         gradient_clip = float(diffusion.get("gradient_clip", 1.0))
         save_every, eval_every = diffusion["save_every_n_steps"], diffusion["eval_every_n_steps"]
@@ -214,10 +220,18 @@ def train(config: dict) -> None:
                 writer.add_scalar("validation/loss", metrics["loss"], global_step)
                 writer.add_scalar("validation/psnr", metrics["psnr"], global_step)
                 tracker.log({"validation/loss": metrics["loss"], "validation/psnr": metrics["psnr"]}, global_step)
+                if metrics["loss"] < best_validation_loss:
+                    best_validation_loss = metrics["loss"]
+                    best_payload = _checkpoint_payload(
+                        model, optimizer, scheduler, scaler, global_step, config,
+                        output_dir / "validation_split.json", best_validation_loss,
+                    )
+                    atomic_torch_save(best_payload, output_dir / "best_checkpoint.pt")
             if global_step % save_every == 0 or global_step == diffusion["num_train_steps"]:
                 payload = _checkpoint_payload(
                     model, optimizer, scheduler, scaler, global_step, config,
                     output_dir / "validation_split.json",
+                    best_validation_loss,
                 )
                 checkpoint_file = output_dir / f"checkpoint_step_{global_step}.pt"
                 atomic_torch_save(payload, checkpoint_file)

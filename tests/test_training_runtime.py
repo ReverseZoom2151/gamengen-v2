@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import pytest
 
-from src.diffusion.train import make_scheduler, train_microbatch
+from src.diffusion.train import _checkpoint_payload, make_scheduler, train_microbatch
 from src.utils.training import atomic_torch_save, capture_rng_state, restore_rng_state, seed_everything
 
 
@@ -50,3 +50,20 @@ def test_non_finite_microbatch_loss_fails_before_backpropagation():
     }
     with pytest.raises(FloatingPointError, match="non-finite"):
         train_microbatch(Model(), batch, torch.amp.GradScaler("cuda", enabled=False), 1, False)
+
+
+def test_checkpoint_payload_preserves_best_validation_loss(tmp_path):
+    class Model:
+        unet = torch.nn.Linear(1, 1)
+        action_embedding = torch.nn.Linear(1, 1)
+        noise_aug_embedding = torch.nn.Linear(1, 1)
+        action_proj = torch.nn.Linear(1, 1)
+
+    model = Model()
+    optimizer = torch.optim.SGD(model.unet.parameters(), lr=1.0)
+    scheduler = make_scheduler(optimizer, "constant", 0, 1)
+    payload = _checkpoint_payload(
+        model, optimizer, scheduler, torch.amp.GradScaler("cuda", enabled=False), 3,
+        {"experiment_name": "test"}, tmp_path / "split.json", 0.25,
+    )
+    assert payload["best_validation_loss"] == 0.25
