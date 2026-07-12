@@ -17,7 +17,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from src.config import load_config, validate_config
 from src.diffusion.dataset import create_dataloaders
 from src.diffusion.model import ActionConditionedDiffusionModel
-from src.utils.training import atomic_torch_save, seed_everything
+from src.utils.training import atomic_torch_save, build_run_manifest, seed_everything
 
 
 def finetune_decoder(config: dict):
@@ -72,6 +72,7 @@ def finetune_decoder(config: dict):
         num_workers=config.get("num_workers", 4),
         validation_fraction=config["diffusion"].get("validation_fraction", 0.05),
         seed=int(config.get("seed", 0)),
+        split_manifest_path=str(output_dir / "validation_split.json"),
     )
 
     # Optimizer
@@ -82,6 +83,11 @@ def finetune_decoder(config: dict):
     # Training loop
     num_steps = config["decoder"]["num_steps"]
     global_step = 0
+    run_manifest = build_run_manifest(
+        config,
+        config["data_dir"],
+        {"validation_split": output_dir / "validation_split.json"},
+    )
 
     pbar = tqdm(total=num_steps, desc="Fine-tuning decoder")
 
@@ -129,6 +135,7 @@ def finetune_decoder(config: dict):
                 "format_version": 1, "decoder": model.vae.decoder.state_dict(),
                 "optimizer": optimizer.state_dict(), "step": global_step,
                 "base_model": config["diffusion"]["pretrained_model"], "config": config,
+                "run_manifest": run_manifest,
             }, checkpoint_path)
             print(f"\nSaved decoder checkpoint: {checkpoint_path}\n")
 
@@ -140,6 +147,7 @@ def finetune_decoder(config: dict):
         "format_version": 1, "decoder": model.vae.decoder.state_dict(),
         "optimizer": optimizer.state_dict(), "step": global_step,
         "base_model": config["diffusion"]["pretrained_model"], "config": config,
+        "run_manifest": run_manifest,
     }, final_path)
 
     print("\n" + "=" * 60)
