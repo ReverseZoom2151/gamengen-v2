@@ -108,14 +108,22 @@ def make_env(config: dict, rank: int = 0):
     """
 
     def _init():
-        env = create_vizdoom_env(
-            scenario=config["environment"].get("scenario", "basic"),
-            width=config["environment"]["resolution"]["width"],
-            height=config["environment"]["resolution"]["height"],
-            frame_skip=config["environment"].get("action_repeat", 4),
-            use_paper_reward=config.get("use_paper_reward", config["agent"].get("reward_function") == "paper_doom"),
-            visible=False,
-        )
+        environment = config["environment"]
+        kwargs = {
+            "width": environment["resolution"]["width"],
+            "height": environment["resolution"]["height"],
+            "frame_skip": environment.get("action_repeat", 4),
+            "use_paper_reward": config.get("use_paper_reward", config["agent"].get("reward_function") == "paper_doom"),
+        }
+        scenarios = environment.get("scenarios")
+        if scenarios:
+            from src.environment.multi_scenario import MultiScenarioViZDoomEnv
+
+            env = MultiScenarioViZDoomEnv(scenarios=scenarios, **kwargs)
+        else:
+            env = create_vizdoom_env(scenario=environment.get("scenario", environment.get("config_file", "basic")), visible=False, **kwargs)
+
+        env.reset(seed=int(config.get("seed", 0)) + rank)
 
         # Wrap with Monitor for episode statistics
         env = Monitor(env)
