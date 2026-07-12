@@ -59,7 +59,11 @@ class RecordingCallback(BaseCallback):
                 terminated=done and not truncated,
                 truncated=truncated,
                 env_id=i,
-                metadata={"environment": "vizdoom"},
+                metadata={
+                    "environment": "vizdoom",
+                    "scenario": info.get("scenario", "single_scenario"),
+                    "policy_step": self.num_timesteps,
+                },
             )
 
         return True

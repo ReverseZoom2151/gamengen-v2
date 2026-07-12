@@ -138,11 +138,17 @@ class MultiScenarioViZDoomEnv(gym.Env):
 
         if seed is not None:
             self.selector.reset_seed(seed)
-        return self.env.reset(seed=seed, options=options)
+        observation, info = self.env.reset(seed=seed, options=options)
+        info = dict(info)
+        info["scenario"] = self.get_current_scenario()
+        return observation, info
 
     def step(self, action):
         """Forward to underlying environment"""
-        return self.env.step(action)
+        observation, reward, terminated, truncated, info = self.env.step(action)
+        info = dict(info)
+        info["scenario"] = self.get_current_scenario()
+        return observation, reward, terminated, truncated, info
 
     def render(self):
         """Forward to underlying environment"""

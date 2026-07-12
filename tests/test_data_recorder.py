@@ -148,3 +148,14 @@ def test_dataset_keeps_a_bounded_decoded_source_cache(tmp_path: Path):
     assert first is dataset._load_source(0)
     dataset._load_source(1)
     assert list(dataset._source_cache) == [1]
+
+
+def test_transition_metadata_is_retained_in_shard_manifest(tmp_path: Path):
+    recorder = EpisodeRecorder(str(tmp_path), save_frequency=1)
+    recorder.add_transition(
+        frame(1), 0, 0.0, frame(2), terminated=True,
+        metadata={"scenario": "basic.cfg", "policy_step": 7},
+    )
+    recorder.finalize()
+    metadata = load_npz_shard(tmp_path / "shard_000000.npz")[0]["metadata"]
+    assert metadata == {"scenario": "basic.cfg", "policy_step": 7}

@@ -127,7 +127,11 @@ def train_dqn_agent(config: dict):
                 next_observation=next_state,
                 terminated=terminated,
                 truncated=truncated,
-                metadata={"environment": "chrome_dino"},
+                metadata={
+                    "environment": "chrome_dino",
+                    "policy_step": global_step,
+                    "policy_phase": "dqn_training",
+                },
             )
 
             # Store transition
