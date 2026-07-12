@@ -136,6 +136,28 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     return config
 
 
+def validate_diffusion_training_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate fields required specifically by the diffusion training entry point."""
+    validate_config(config)
+    diffusion = config["diffusion"]
+    _require(
+        diffusion,
+        (
+            "action_embedding_dim", "batch_size", "num_train_steps", "learning_rate",
+            "noise_augmentation", "save_every_n_steps", "eval_every_n_steps",
+        ),
+        "diffusion training",
+    )
+    if not isinstance(diffusion["noise_augmentation"], dict):
+        raise ConfigError("diffusion.noise_augmentation must be a mapping")
+    _require(diffusion["noise_augmentation"], ("num_buckets", "max_noise_level"), "noise_augmentation")
+    _require(config, ("logging",), "diffusion training")
+    _require(config["logging"], ("log_interval",), "logging")
+    if config["logging"]["log_interval"] <= 0:
+        raise ConfigError("logging.log_interval must be positive")
+    return config
+
+
 def load_config(path: str) -> Dict[str, Any]:
     """Load and validate a YAML configuration file."""
 

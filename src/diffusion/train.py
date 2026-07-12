@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.config import load_config, validate_config
+from src.config import load_config, validate_diffusion_training_config
 from src.diffusion.dataset import create_dataloaders
 from src.diffusion.artifacts import model_state_from_checkpoint
 from src.diffusion.optimizers import create_optimizer
@@ -244,7 +244,7 @@ def main() -> None:
     if args.steps: config["diffusion"]["num_train_steps"] = args.steps
     if args.batch_size: config["diffusion"]["batch_size"] = args.batch_size
     if args.device: config["device"] = args.device
-    train(validate_config(config))
+    train(validate_diffusion_training_config(config))
 
 
 if __name__ == "__main__":

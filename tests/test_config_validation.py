@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.config import ConfigError, load_config, validate_config
+from src.config import ConfigError, load_config, validate_config, validate_diffusion_training_config
 
 
 def valid_config():
@@ -60,3 +60,8 @@ def test_validate_config_rejects_unknown_scheduler():
     config["diffusion"]["lr_scheduler"] = "magic"
     with pytest.raises(ConfigError, match="lr_scheduler"):
         validate_config(config)
+
+
+def test_training_validation_requires_actual_training_fields():
+    with pytest.raises(ConfigError, match="diffusion training is missing"):
+        validate_diffusion_training_config(valid_config())
