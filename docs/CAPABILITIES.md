@@ -4,13 +4,13 @@ This document distinguishes implemented code from validated functionality.
 
 | Area | Status | Notes |
 |---|---|---|
-| Versioned recording shards | Implemented and unit-tested | NPZ shards, atomic writes, per-environment buffers, and legacy pickle read compatibility |
-| Config validation | Implemented and unit-tested | Top-level typo detection and core semantic checks |
+| Versioned recording shards | Implemented and unit-tested | NPZ shards, atomic writes, per-environment buffers, checksum/schema validation, and legacy pickle read compatibility |
+| Config validation | Implemented and unit-tested | Top-level typo detection, semantic validation, and executable tier profiles |
 | Offline CPU tests | Implemented | No model downloads or game runtimes required |
 | Chrome Dino training | In repair | Real environment must be validated before training claims |
 | ViZDoom PPO collection | In repair | Transition isolation is implemented; action/reward/scenario fidelity remains work in progress |
-| Stable Diffusion training | In repair | Scheduler and CFG corrections are underway; no reproduced checkpoint exists |
-| Decoder fine-tuning | Experimental | Artifact integration and evaluation are incomplete |
+| Stable Diffusion training | In repair | Configured optimizer/scheduler/accumulation, episode-held-out validation, and resumable checkpoints are implemented; no reproduced checkpoint exists |
+| Decoder fine-tuning | Experimental | Artifacts are provenance-tagged and loadable; end-to-end evaluation remains incomplete |
 | Distillation | Experimental / unavailable | Do not use for research claims |
 | FVD | Experimental / unavailable | Current implementation is not paper-comparable |
 | Human evaluation | Experimental / unavailable | Current implementation is not a blinded study tool |

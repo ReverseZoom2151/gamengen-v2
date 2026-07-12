@@ -107,26 +107,18 @@ The finished project should distinguish two profiles explicitly:
 
 #### Core diffusion model
 
-- The training target uses velocity prediction, while the loaded Stable Diffusion scheduler may still interpret output as epsilon prediction.
-- Scheduler coefficient tensors may be indexed with CUDA timesteps while remaining on CPU.
-- CFG is applied during inference, but configured conditioning dropout is not applied during training.
+- Velocity prediction, scheduler device/dtype handling, and observation CFG dropout have been corrected; fixture-level mathematical verification remains to be added.
 - The interactive player applies a user's action after generating the frame, creating a one-frame control lag.
 - The same action-timing error exists in modding and video-export paths.
 - Mixed-precision evaluation does not consistently use autocast or cast inputs to component dtype.
 - The configured inference context-noise level is not fully integrated.
-- Decoder fine-tuning produces weights that inference does not load.
+- Decoder artifacts are now provenance-tagged and inference-loadable; no end-to-end quality validation exists yet.
 
 #### Training
 
-- Training always constructs AdamW, even when Tier 3 requests Adafactor.
-- Gradient accumulation is configured but not implemented.
-- LR scheduler and warmup settings are ignored.
+- Optimizer selection, gradient accumulation, scheduler, warmup, held-out validation, atomic checkpointing, and scaler/RNG resume state are implemented; distributed and sampler resume support remains outstanding.
 - Several configured logging, debugging, profiling, and W&B behaviors are ignored.
-- Evaluation uses the shuffled training loader rather than a held-out split.
-- Checkpoints omit scaler, scheduler, RNG, sampler, best-metric, provenance, and environment state.
-- Checkpoint retention uses lexicographic filename sorting.
-- The custom Adafactor implementation has device and tensor-shape defects.
-- The configured seed is not applied consistently to diffusion training, environments, workers, and models.
+- Seed handling is applied to core diffusion training; full worker/environment reproducibility and data-loader sampler state remain outstanding.
 
 #### Evaluation and advanced modules
 
