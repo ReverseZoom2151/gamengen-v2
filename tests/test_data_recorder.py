@@ -6,6 +6,7 @@ from src.diffusion.dataset import GameplayDataset
 import pytest
 
 from src.utils.data_recorder import DatasetLoader, EpisodeRecorder, load_npz_shard
+from src.utils.migration import migrate_legacy_pickles
 
 
 def frame(value: int) -> np.ndarray:
@@ -92,3 +93,14 @@ def test_checksum_validation_detects_tampered_shard(tmp_path: Path):
     shard.write_bytes(shard.read_bytes() + b"tampered")
     with pytest.raises(ValueError, match="checksum mismatch"):
         DatasetLoader(str(tmp_path))
+
+
+def test_trusted_legacy_migration_creates_valid_npz_dataset(tmp_path: Path):
+    import pickle
+
+    source, target = tmp_path / "old", tmp_path / "new"
+    source.mkdir()
+    with (source / "batch_000000.pkl").open("wb") as handle:
+        pickle.dump([{"frames": [frame(1), frame(2)], "actions": [1], "rewards": [2.0]}], handle)
+    assert migrate_legacy_pickles(str(source), str(target), trusted=True) == 1
+    assert DatasetLoader(str(target)).load_batch(0)[0]["actions"].tolist() == [1]
