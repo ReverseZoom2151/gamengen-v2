@@ -3,6 +3,8 @@ Quick test script to verify installation and setup
 Run this after installing dependencies
 """
 
+__test__ = False
+
 import sys
 from pathlib import Path
 

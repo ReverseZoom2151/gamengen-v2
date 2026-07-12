@@ -3,6 +3,10 @@ Comprehensive test script for GameNGen diffusion components
 Tests model, dataset, and training/inference functionality
 """
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 import sys
 from pathlib import Path
 

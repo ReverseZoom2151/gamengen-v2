@@ -3,6 +3,10 @@ Comprehensive test script for all 3 tiers of GameNGen
 Tests Tier 1 (Chrome Dino), Tier 2 (DOOM Lite), and Tier 3 (Full DOOM)
 """
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 import sys
 from pathlib import Path
 

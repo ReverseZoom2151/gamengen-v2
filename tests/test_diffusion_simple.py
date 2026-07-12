@@ -2,6 +2,10 @@
 Simple test script for GameNGen diffusion components (Windows compatible)
 """
 
+import pytest
+
+pytestmark = pytest.mark.integration
+
 import sys
 from pathlib import Path
 

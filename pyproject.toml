@@ -51,7 +51,7 @@ include = ["src*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+addopts = "-ra -m 'not integration and not gpu'"
 markers = [
   "gpu: requires a CUDA-capable PyTorch installation",
   "integration: requires an optional game environment or model artifact",
