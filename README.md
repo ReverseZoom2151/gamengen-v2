@@ -55,6 +55,7 @@ while migration is completed. Development entry points are:
 gamengen-dino --config configs/tier1_chrome_dino.yaml
 gamengen-doom --config configs/tier2_doom_lite.yaml
 gamengen-cache-latents --config configs/tier2_doom_lite.yaml --shard data/recordings/shard_000000.npz --output data/latents/shard_000000.npz
+gamengen-create-eval-manifest --data-dir data/recordings --output artifacts/evaluation_manifest.json
 gamengen-train --config configs/tier1_chrome_dino.yaml
 ```
 
