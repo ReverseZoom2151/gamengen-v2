@@ -3,8 +3,9 @@
 This repository is an in-progress, test-driven implementation of the ICLR 2025
 paper [“Diffusion Models Are Real-Time Game Engines”](https://arxiv.org/abs/2408.14837).
 It does not include trained weights, reproduced benchmarks, or a paper-faithful
-claim. See [the implementation roadmap](docs/IMPLEMENTATION_ROADMAP.md) and
-[capability status](docs/CAPABILITIES.md) before running expensive experiments.
+claim. See [the implementation roadmap](docs/IMPLEMENTATION_ROADMAP.md),
+[capability status](docs/CAPABILITIES.md), and
+[paper-fidelity status](docs/PAPER_FIDELITY.md) before running expensive experiments.
 
 ## Status
 

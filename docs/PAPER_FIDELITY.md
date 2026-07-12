@@ -1,0 +1,29 @@
+# Paper-fidelity status
+
+This report compares the current code to *Diffusion Models Are Real-Time Game
+Engines*. It is an implementation-status document, not a reproduction result.
+
+| Paper element | Current state | Evidence / limitation |
+|---|---|---|
+| Stable Diffusion 1.4 base | Configured | Base revision is not pinned and no local model artifact is included |
+| 320×240 game frames padded to 320×256 | Implemented | ViZDoom contract center-pads instead of vertically stretching |
+| 64-frame context | Configured in Tier 2/3 | No trained checkpoint validates long rollout behavior |
+| Current action / action history | Implemented | Fixed-length current-action contract and learned temporal action positions are unit-tested |
+| Context noise (max 0.7, 10 buckets) | Configured and implemented | Distribution/rollout ablation not yet run |
+| Observation CFG dropout (0.1) | Implemented | Actions remain conditioned; no trained validation artifact |
+| Velocity prediction | Implemented | Mathematical target has a unit fixture; no end-to-end model fixture |
+| 4-step DDIM | Configured | Runtime speed/quality has not been measured locally |
+| Adafactor, no weight decay | Configured | Uses maintained Transformers implementation when optional dependency is installed |
+| PPO, 8 parallel games, 10M steps | Configured | ViZDoom runtime and paper observation architecture require integration validation |
+| 900M recorded frames | Configured target | No such corpus is included |
+| Decoder-only fine-tuning | Experimental | Artifacts are provenance-tagged/loadable; no quality result exists |
+| One-step distillation | Unavailable | Explicitly quarantined because historical logic was invalid |
+| FVD and human study | Unavailable as evidence | FVD requires paired trajectories/pretrained I3D; human protocol is blinded but no study exists |
+
+## Reproduction gate
+
+Do not describe this repository as paper-faithful until an immutable run bundle
+links the exact code revision, pinned model revision, recording metadata and
+episode split, training configuration, checkpoint, generated rollouts, and
+evaluation outputs. The report must separately identify matched, approximated,
+and unavailable hardware/data conditions.
