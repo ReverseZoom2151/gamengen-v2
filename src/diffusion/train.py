@@ -200,7 +200,7 @@ def train(config: dict) -> None:
                 batch, iterator = _next_batch(iterator, train_loader)
                 step_loss += train_microbatch(model, batch, scaler, accumulation, use_amp).item()
             scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
+            gradient_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
             scaler.step(optimizer)
             scaler.update()
             scheduler.step()
@@ -213,7 +213,15 @@ def train(config: dict) -> None:
                 progress.set_postfix(loss=f"{average:.4f}", steps_per_sec=f"{log_every / elapsed:.2f}")
                 writer.add_scalar("train/loss", average, global_step)
                 writer.add_scalar("train/learning_rate", optimizer.param_groups[0]["lr"], global_step)
-                tracker.log({"train/loss": average, "train/learning_rate": optimizer.param_groups[0]["lr"]}, global_step)
+                tracked = {
+                    "train/loss": average,
+                    "train/learning_rate": optimizer.param_groups[0]["lr"],
+                }
+                if config["logging"].get("log_gradients", False):
+                    gradient_value = float(gradient_norm)
+                    writer.add_scalar("train/gradient_norm", gradient_value, global_step)
+                    tracked["train/gradient_norm"] = gradient_value
+                tracker.log(tracked, global_step)
                 running_loss, start_time = 0.0, time.time()
             if global_step % eval_every == 0:
                 metrics = evaluate(model, validation_loader)
