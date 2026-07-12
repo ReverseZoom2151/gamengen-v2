@@ -9,7 +9,7 @@ from typing import Iterator
 
 import numpy as np
 import torch
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from torch.optim.lr_scheduler import LambdaLR
 from tqdm import tqdm
 
@@ -65,8 +65,10 @@ def _move_batch(batch: dict, device: torch.device) -> tuple[torch.Tensor, torch.
 def train_microbatch(model, batch: dict, scaler: GradScaler, accumulation_steps: int, use_amp: bool) -> torch.Tensor:
     """Backpropagate a normalized microbatch loss; the caller owns optimizer stepping."""
     target, context_frames, context_actions = _move_batch(batch, model.device)
-    with autocast(enabled=use_amp):
+    with autocast("cuda", enabled=use_amp):
         loss = model(target, context_frames, context_actions)
+    if not torch.isfinite(loss):
+        raise FloatingPointError(f"non-finite diffusion loss: {loss.detach().item()}")
     scaler.scale(loss / accumulation_steps).backward()
     return loss.detach()
 
@@ -176,7 +178,7 @@ def train(config: dict) -> None:
         )
         optimizer = create_optimizer(diffusion.get("optimizer", "AdamW"), model.parameters(), diffusion)
         scheduler = make_scheduler(optimizer, diffusion.get("lr_scheduler", "constant"), diffusion.get("warmup_steps", 0), diffusion["num_train_steps"])
-        scaler = GradScaler(enabled=use_amp)
+        scaler = GradScaler("cuda", enabled=use_amp)
         latest = output_dir / "latest_checkpoint.pt"
         global_step = _restore_checkpoint(latest, model, optimizer, scheduler, scaler, device) if latest.exists() else 0
         accumulation = max(1, int(diffusion.get("gradient_accumulation_steps", 1)))
