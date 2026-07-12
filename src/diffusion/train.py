@@ -17,6 +17,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.config import load_config, validate_config
 from src.diffusion.dataset import create_dataloaders
+from src.diffusion.artifacts import model_state_from_checkpoint
 from src.diffusion.optimizers import create_optimizer
 from src.utils.training import (
     atomic_torch_save,
@@ -118,7 +119,7 @@ def _checkpoint_payload(
 
 def _restore_checkpoint(path: Path, model, optimizer, scheduler, scaler, device: torch.device) -> int:
     checkpoint = torch.load(path, map_location=device, weights_only=False)
-    model_state = checkpoint.get("model", checkpoint)  # v1 compatibility
+    model_state = model_state_from_checkpoint(checkpoint)
     for name in ("unet", "noise_aug_embedding", "action_proj"):
         getattr(model, name).load_state_dict(model_state[name])
     # Pre-position checkpoints lack only the newly introduced temporal table.

@@ -20,6 +20,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.diffusion.model import ActionConditionedDiffusionModel
 from src.diffusion.conditioning import condition_current_action
+from src.diffusion.artifacts import model_state_from_checkpoint
 from src.environment.chrome_dino_env import SimpleDinoEnv
 from src.config import load_config
 
@@ -431,7 +432,7 @@ def main():
     # Load checkpoint
     print(f"Loading checkpoint from {args.checkpoint}")
     checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
-    model_state = checkpoint.get("model", checkpoint)
+    model_state = model_state_from_checkpoint(checkpoint)
 
     model.unet.load_state_dict(model_state["unet"])
     model.action_embedding.load_state_dict(model_state["action_embedding"], strict=False)
