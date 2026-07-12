@@ -9,13 +9,13 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import yaml
 from tqdm import tqdm
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.agent.dqn_agent import DQNAgent
+from src.config import load_config, validate_config
 from src.environment.chrome_dino_env import ChromeDinoEnv, SimpleDinoEnv
 from src.utils.data_recorder import EpisodeRecorder
 
@@ -234,8 +234,7 @@ def main():
         print(f"Config file not found: {config_path}")
         return
 
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
+    config = load_config(str(config_path))
 
     # Override config with command line arguments
     if args.episodes:
@@ -246,6 +245,8 @@ def main():
 
     if args.device:
         config["device"] = args.device
+
+    validate_config(config)
 
     # Train agent
     train_dqn_agent(config)

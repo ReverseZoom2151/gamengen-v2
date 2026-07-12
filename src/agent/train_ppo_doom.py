@@ -9,7 +9,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import yaml
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 from stable_baselines3.common.monitor import Monitor
@@ -19,6 +18,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.environment.vizdoom_env import create_vizdoom_env
+from src.config import load_config, validate_config
 from src.utils.data_recorder import EpisodeRecorder
 
 
@@ -295,8 +295,7 @@ def main():
         print(f"Config file not found: {config_path}")
         return
 
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
+    config = load_config(str(config_path))
 
     # Apply overrides
     if args.timesteps:
@@ -307,6 +306,8 @@ def main():
 
     if args.use_paper_reward:
         config["use_paper_reward"] = True
+
+    validate_config(config)
 
     # Train
     train_ppo_doom(config)

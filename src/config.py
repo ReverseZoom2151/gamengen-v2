@@ -17,6 +17,7 @@ _TOP_LEVEL_KEYS = {
     "device",
     "num_workers",
     "mixed_precision",
+    "use_paper_reward",
     "data_dir",
     "checkpoint_dir",
     "log_dir",

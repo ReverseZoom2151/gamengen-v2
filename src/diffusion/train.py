@@ -10,7 +10,6 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.optim as optim
-import yaml
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -20,6 +19,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.diffusion.dataset import create_dataloader
 from src.diffusion.model import ActionConditionedDiffusionModel
+from src.config import load_config, validate_config
 
 
 def compute_metrics(pred_frames: torch.Tensor, target_frames: torch.Tensor) -> dict:
@@ -381,8 +381,7 @@ def main():
     args = parser.parse_args()
 
     # Load config
-    with open(args.config, "r") as f:
-        config = yaml.safe_load(f)
+    config = load_config(args.config)
 
     # Apply overrides
     if args.data:
@@ -396,6 +395,8 @@ def main():
 
     if args.device:
         config["device"] = args.device
+
+    validate_config(config)
 
     # Train
     train(config)
