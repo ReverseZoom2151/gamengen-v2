@@ -9,6 +9,7 @@ Engines*. It is an implementation-status document, not a reproduction result.
 | 320×240 game frames padded to 320×256 | Implemented | ViZDoom contract center-pads instead of vertically stretching |
 | 64-frame context | Configured in Tier 2/3 | No trained checkpoint validates long rollout behavior |
 | Current action / action history | Implemented | Fixed-length current-action contract and learned temporal action positions are unit-tested |
+| Counterfactual action responsiveness | Implemented probe | A deterministic grid changes only the current action and reports pairwise frame differences; it needs trained-artifact results before supporting a control claim |
 | Context noise (max 0.7, 10 buckets) | Configured and implemented | Distribution/rollout ablation not yet run |
 | Observation CFG dropout (0.1) | Implemented | Actions remain conditioned; no trained validation artifact |
 | Velocity prediction | Implemented | Mathematical target has a unit fixture; no end-to-end model fixture |

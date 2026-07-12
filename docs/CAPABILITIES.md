@@ -10,6 +10,7 @@ This document distinguishes implemented code from validated functionality.
 | Chrome Dino training | In repair | Real environment must be validated before training claims |
 | ViZDoom PPO collection | In repair | Transition isolation plus a map/action-history PPO input contract are unit-tested; real ViZDoom runtime, reward, and scenario validation remain work in progress |
 | Stable Diffusion training | In repair | Configured optimizer/scheduler/accumulation, EMA validation/sampling weights, episode-held-out validation, and resumable checkpoints are implemented; no reproduced checkpoint exists |
+| Action counterfactual grid | Implemented and unit-tested | Identical contexts are generated under selected current actions; zero pairwise change is reported as control collapse rather than a successful control result |
 | Decoder fine-tuning | Experimental | Artifacts are provenance-tagged and loadable; end-to-end evaluation remains incomplete |
 | Distillation | Quarantined / unavailable | Command fails explicitly; do not use for research claims |
 | FVD | Experimental / unavailable | Invalid self-comparison is rejected; pretrained I3D and paired trajectory workflow remain required |
