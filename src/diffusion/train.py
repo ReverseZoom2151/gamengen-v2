@@ -27,6 +27,7 @@ from src.utils.training import (
     restore_rng_state,
     seed_everything,
 )
+from src.utils.tracking import create_tracker
 
 
 def compute_metrics(pred_frames: torch.Tensor, target_frames: torch.Tensor) -> dict:
@@ -157,7 +158,9 @@ def train(config: dict) -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
     diffusion = config["diffusion"]
     writer = SummaryWriter(log_dir / config["experiment_name"])
+    tracker = None
     try:
+        tracker = create_tracker(config)
         train_loader, validation_loader = create_dataloaders(
             data_dir=config["data_dir"], batch_size=diffusion["batch_size"], context_length=diffusion["context_length"],
             resolution=(config["environment"]["resolution"]["height"], config["environment"]["resolution"]["width"]),
@@ -202,11 +205,13 @@ def train(config: dict) -> None:
                 progress.set_postfix(loss=f"{average:.4f}", steps_per_sec=f"{log_every / elapsed:.2f}")
                 writer.add_scalar("train/loss", average, global_step)
                 writer.add_scalar("train/learning_rate", optimizer.param_groups[0]["lr"], global_step)
+                tracker.log({"train/loss": average, "train/learning_rate": optimizer.param_groups[0]["lr"]}, global_step)
                 running_loss, start_time = 0.0, time.time()
             if global_step % eval_every == 0:
                 metrics = evaluate(model, validation_loader)
                 writer.add_scalar("validation/loss", metrics["loss"], global_step)
                 writer.add_scalar("validation/psnr", metrics["psnr"], global_step)
+                tracker.log({"validation/loss": metrics["loss"], "validation/psnr": metrics["psnr"]}, global_step)
             if global_step % save_every == 0 or global_step == diffusion["num_train_steps"]:
                 payload = _checkpoint_payload(
                     model, optimizer, scheduler, scaler, global_step, config,
@@ -222,6 +227,8 @@ def train(config: dict) -> None:
         progress.close()
     finally:
         writer.close()
+        if tracker is not None:
+            tracker.finish()
 
 
 def main() -> None:
