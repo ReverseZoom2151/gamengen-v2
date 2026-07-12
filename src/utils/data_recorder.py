@@ -49,14 +49,23 @@ class EpisodeRecorder:
                 metadata = json.load(handle)
 
         shard_ids = []
+        recovered_episodes = 0
+        recovered_frames = 0
+        highest_episode_id = -1
         for path in self.output_dir.glob("shard_*.npz"):
             try:
                 shard_ids.append(int(path.stem.split("_")[-1]))
             except ValueError:
                 continue
+            with np.load(path, allow_pickle=False) as shard:
+                manifest = json.loads(str(shard["_manifest"].item()))
+                for item in manifest.get("episodes", []):
+                    recovered_episodes += 1
+                    highest_episode_id = max(highest_episode_id, int(item["episode_id"]))
+                    recovered_frames += int(item["length"]) + 1
 
-        self.episode_count = int(metadata.get("total_episodes", 0))
-        self.total_frames = int(metadata.get("total_frames", 0))
+        self.episode_count = max(int(metadata.get("total_episodes", 0)), highest_episode_id + 1, recovered_episodes)
+        self.total_frames = max(int(metadata.get("total_frames", 0)), recovered_frames)
         self.next_shard_id = max(shard_ids, default=-1) + 1
         self.shard_checksums: Dict[str, str] = dict(metadata.get("shard_checksums", {}))
 

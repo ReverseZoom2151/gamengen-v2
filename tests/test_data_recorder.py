@@ -73,6 +73,18 @@ def test_recorder_resume_allocates_new_shard_ids(tmp_path: Path):
     assert len(list(loader.iter_episodes())) == 2
 
 
+def test_recorder_recovers_episode_identity_without_metadata(tmp_path: Path):
+    first = EpisodeRecorder(str(tmp_path), save_frequency=1)
+    add_episode(first, env_id=0, length=1)
+    first.finalize()
+    (tmp_path / "metadata.json").unlink()
+    second = EpisodeRecorder(str(tmp_path), save_frequency=1)
+    add_episode(second, env_id=0, length=1, offset=10)
+    second.finalize()
+    episodes = list(DatasetLoader(str(tmp_path)).iter_episodes())
+    assert [episode["episode_id"] for episode in episodes] == [0, 1]
+
+
 def test_npz_dataset_uses_canonical_target_action(tmp_path: Path):
     recorder = EpisodeRecorder(str(tmp_path), save_frequency=1)
     add_episode(recorder, env_id=0, length=3)
