@@ -137,17 +137,19 @@ class GameNGenEvaluator:
         # PSNR
         metrics["psnr"] = self.compute_psnr(pred_frames, target_frames)
 
-        # LPIPS
-        metrics["lpips"] = self.compute_lpips(pred_frames, target_frames)
+        if self.lpips_model is not None:
+            metrics["lpips"] = self.compute_lpips(pred_frames, target_frames)
 
         # MSE
         metrics["mse"] = self.compute_mse(pred_frames, target_frames)
 
-        # SSIM (on first frame only for speed)
         if pred_frames.shape[0] > 0:
-            pred_np = pred_frames[0].permute(1, 2, 0).cpu().numpy()
-            target_np = target_frames[0].permute(1, 2, 0).cpu().numpy()
-            metrics["ssim"] = self.compute_ssim(pred_np, target_np)
+            scores = []
+            for prediction, target in zip(pred_frames, target_frames):
+                pred_np = prediction.permute(1, 2, 0).cpu().numpy()
+                target_np = target.permute(1, 2, 0).cpu().numpy()
+                scores.append(self.compute_ssim(pred_np, target_np))
+            metrics["ssim"] = float(np.mean(scores))
 
         return metrics
 
