@@ -11,7 +11,7 @@ import random
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 
 @dataclass
@@ -76,6 +76,8 @@ class HumanEvaluationFramework:
         Returns:
             List of evaluation clips
         """
+        if not real_videos or not fake_videos:
+            raise ValueError("real_videos and fake_videos must both be non-empty")
         clips = []
         clip_id = 0
 
@@ -103,21 +105,24 @@ class HumanEvaluationFramework:
         return clips
 
     def save_evaluation_protocol(self, filename: str = "evaluation_protocol.json"):
-        """Save evaluation protocol for reproducibility"""
+        """Save a blinded public protocol and a separate answer key."""
         protocol = {
             "num_clips": len(self.evaluation_clips),
             "clip_lengths": self.clip_lengths,
-            "clips": [asdict(clip) for clip in self.evaluation_clips],
+            "clips": [{key: value for key, value in asdict(clip).items() if key != "real_is_on_left"} for clip in self.evaluation_clips],
         }
 
         output_path = self.output_dir / filename
         with open(output_path, "w") as f:
             json.dump(protocol, f, indent=2)
+        answer_key = self.output_dir / "answer_key.json"
+        with open(answer_key, "w") as f:
+            json.dump({str(clip.clip_id): clip.real_is_on_left for clip in self.evaluation_clips}, f, indent=2)
 
         print(f"Saved evaluation protocol to {output_path}")
 
     def run_evaluation_session(
-        self, evaluator_id: str, start_clip_idx: int = 0
+        self, evaluator_id: str, start_clip_idx: int = 0, input_fn: Callable[[str], str] = input
     ) -> List[EvaluationResult]:
         """
         Run evaluation session with human rater
@@ -155,22 +160,8 @@ class HumanEvaluationFramework:
 
             start_time = time.time()
 
-            # In actual implementation, would display videos side by side
-            # For now, just simulate the interface
-            print(f"  [Simulated] Showing clip {clip.clip_id}")
-            print(
-                f"  Left: {'REAL' if clip.real_is_on_left else 'FAKE'} (hidden from user)"
-            )
-            print(
-                f"  Right: {'FAKE' if clip.real_is_on_left else 'REAL'} (hidden from user)"
-            )
-
-            # Simulate user input (in real implementation, would wait for keypress)
-            print("\n  Press 'L' for left, 'R' for right, 'Q' to quit:")
-
-            # For demo purposes, we'll skip actual input
-            # In production, use: choice = input().lower()
-            choice = "demo_mode"
+            print(f"  Present left/right clips for clip {clip.clip_id} using the UI layer.")
+            choice = input_fn("  Which side is real? [L/R, Q to quit]: ").strip().lower()
 
             if choice == "q":
                 print("\nQuitting and saving progress...")
@@ -184,9 +175,11 @@ class HumanEvaluationFramework:
                     choice == "r" and not clip.real_is_on_left
                 )
 
-                # Ask for confidence (1-5)
-                print("  Confidence (1=guessing, 5=certain):")
-                confidence = 3  # Demo mode
+                confidence_text = input_fn("  Confidence [1-5]: ").strip()
+                if confidence_text not in {"1", "2", "3", "4", "5"}:
+                    print("  Invalid confidence; response not recorded.")
+                    continue
+                confidence = int(confidence_text)
 
                 result = EvaluationResult(
                     clip_id=clip.clip_id,
@@ -198,6 +191,8 @@ class HumanEvaluationFramework:
                 )
 
                 results.append(result)
+            else:
+                print("  Invalid choice; response not recorded.")
 
         # Save results
         self.save_results(evaluator_id, results)
