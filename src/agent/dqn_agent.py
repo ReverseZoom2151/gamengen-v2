@@ -5,13 +5,15 @@ Based on paper's Appendix A.10 - uses DQN with experience replay
 
 import random
 from collections import deque
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
-import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
+if TYPE_CHECKING:
+    import gymnasium as gym
 
 
 class DQNNetwork(nn.Module):
@@ -110,13 +112,22 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
+    def state_dict(self) -> dict:
+        return {"capacity": self.buffer.maxlen, "transitions": list(self.buffer)}
+
+    def load_state_dict(self, state: dict) -> None:
+        self.buffer = deque(
+            state.get("transitions", []),
+            maxlen=state.get("capacity", self.buffer.maxlen),
+        )
+
 
 class DQNAgent:
     """DQN Agent for training"""
 
     def __init__(
         self,
-        env: gym.Env,
+        env: "gym.Env",
         learning_rate: float = 1e-4,
         gamma: float = 0.99,
         epsilon_start: float = 1.0,
@@ -237,19 +248,29 @@ class DQNAgent:
                 "steps_done": self.steps_done,
                 "episodes_done": self.episodes_done,
                 "epsilon": self.epsilon,
+                "replay_buffer": self.memory.state_dict(),
+                "python_rng": random.getstate(),
+                "numpy_rng": np.random.get_state(),
+                "torch_rng": torch.get_rng_state(),
             },
             path,
         )
 
     def load(self, path: str):
         """Load agent"""
-        checkpoint = torch.load(path, map_location=self.device)
+        checkpoint = torch.load(path, map_location=self.device, weights_only=False)
         self.policy_net.load_state_dict(checkpoint["policy_net"])
         self.target_net.load_state_dict(checkpoint["target_net"])
         self.optimizer.load_state_dict(checkpoint["optimizer"])
         self.steps_done = checkpoint.get("steps_done", 0)
         self.episodes_done = checkpoint.get("episodes_done", 0)
         self.epsilon = checkpoint.get("epsilon", self.epsilon_end)
+        if "replay_buffer" in checkpoint:
+            self.memory.load_state_dict(checkpoint["replay_buffer"])
+        if "python_rng" in checkpoint:
+            random.setstate(checkpoint["python_rng"])
+            np.random.set_state(checkpoint["numpy_rng"])
+            torch.set_rng_state(checkpoint["torch_rng"])
 
 
 if __name__ == "__main__":
