@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, Subset
 from tqdm import tqdm
 
 from src.utils.data_recorder import load_npz_shard
@@ -298,6 +298,38 @@ def create_dataloader(
     )
 
     return dataloader
+
+
+def create_dataloaders(
+    data_dir: str,
+    batch_size: int = 32,
+    context_length: int = 32,
+    resolution: Tuple[int, int] = (256, 512),
+    num_workers: int = 4,
+    validation_fraction: float = 0.05,
+    seed: int = 0,
+) -> Tuple[DataLoader, DataLoader]:
+    """Create deterministic episode-disjoint train and validation loaders."""
+    if not 0.0 < validation_fraction < 1.0:
+        raise ValueError("validation_fraction must be between 0 and 1")
+    dataset = GameplayDataset(data_dir, context_length, resolution)
+    by_episode: Dict[Tuple[int, int], List[int]] = {}
+    for index, trajectory in enumerate(dataset.trajectories):
+        by_episode.setdefault((trajectory["batch_idx"], trajectory["episode_idx"]), []).append(index)
+    episode_keys = sorted(by_episode)
+    if len(episode_keys) < 2:
+        raise ValueError("at least two recorded episodes are required for a train/validation split")
+    rng = np.random.default_rng(seed)
+    rng.shuffle(episode_keys)
+    validation_count = min(len(episode_keys) - 1, max(1, round(len(episode_keys) * validation_fraction)))
+    validation_indices = [index for key in episode_keys[:validation_count] for index in by_episode[key]]
+    train_indices = [index for key in episode_keys[validation_count:] for index in by_episode[key]]
+    generator = torch.Generator().manual_seed(seed)
+    common = {"batch_size": batch_size, "num_workers": num_workers, "pin_memory": torch.cuda.is_available(), "persistent_workers": num_workers > 0}
+    return (
+        DataLoader(Subset(dataset, train_indices), shuffle=True, generator=generator, **common),
+        DataLoader(Subset(dataset, validation_indices), shuffle=False, **common),
+    )
 
 
 def test_dataset(data_dir: str):
