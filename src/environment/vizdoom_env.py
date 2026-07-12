@@ -11,6 +11,7 @@ import gymnasium as gym
 import numpy as np
 import vizdoom as vzd
 from gymnasium import spaces
+from src.environment.doom_contracts import pad_rgb_frame, paper_reward
 
 
 class ViZDoomEnv(gym.Env):
@@ -179,11 +180,7 @@ class ViZDoomEnv(gym.Env):
         # Get screen buffer
         screen = state.screen_buffer
 
-        # Resize if needed
-        if screen.shape[:2] != (self.height, self.width):
-            screen = cv2.resize(screen, (self.width, self.height))
-
-        return screen
+        return pad_rgb_frame(screen, self.width, self.height)
 
     def _get_game_variable(self, name: str) -> float:
         """Read a named ViZDoom variable without relying on scenario ordering."""
@@ -385,66 +382,13 @@ class ViZDoomEnvWithPaperReward(ViZDoomEnv):
         9. Armor delta: 10 * delta points
         10. Ammo delta: 10 * max(0, delta) + min(0, delta) points
         """
-        reward = 0.0
-
-        # Get current variables
-        health = game_vars["health"]
-        armor = game_vars["armor"]
-        ammo = game_vars["ammo"]
-        killcount = game_vars["killcount"]
-        pos_x = game_vars["position_x"]
-        pos_y = game_vars["position_y"]
-
-        # 1. Player hit (health decreased)
-        if self.prev_health is not None and health < self.prev_health:
-            health_lost = self.prev_health - health
-            reward -= 100  # Penalty for getting hit
-
-        # 2. Player death
-        if health <= 0:
-            reward -= 5000
-
-        # 3 & 4. Enemy hits and kills
-        hitcount = game_vars["hitcount"]
-        previous_hits = getattr(self, "prev_hitcount", hitcount)
-        if hitcount > previous_hits:
-            reward += 300 * (hitcount - previous_hits)
-        if self.prev_killcount is not None:
-            kills = killcount - self.prev_killcount
-            if kills > 0:
-                reward += 1000 * kills  # Enemy kill reward
-
-        # 5 & 6. Pickups and secrets are exposed directly by compatible scenarios.
-        itemcount = game_vars["itemcount"]
-        secretcount = game_vars["secretcount"]
-        reward += 100 * max(0, itemcount - self.prev_items_count)
-        reward += 500 * max(0, secretcount - self.prev_secrets_found)
-
-        # 7. New area exploration
-        current_pos = (int(pos_x / 100), int(pos_y / 100))  # Grid cells
-        if current_pos not in self.visited_positions:
-            self.visited_positions.add(current_pos)
-
-            # L1 distance from origin
-            distance = abs(pos_x) + abs(pos_y)
-            reward += 20 * (1 + 0.5 * distance / 1000.0)  # Scale distance
-
-        # 8. Health delta
-        if self.prev_health is not None:
-            health_delta = health - self.prev_health
-            reward += 10 * health_delta
-
-        # 9. Armor delta
-        if self.prev_armor is not None:
-            armor_delta = armor - self.prev_armor
-            reward += 10 * armor_delta
-
-        # 10. Ammo delta
-        if self.prev_ammo is not None:
-            ammo_delta = ammo - self.prev_ammo
-            reward += 10 * max(0, ammo_delta) + min(0, ammo_delta)
-
-        return reward
+        previous = {
+            "health": self.prev_health, "armor": self.prev_armor, "ammo": self.prev_ammo,
+            "killcount": self.prev_killcount, "hitcount": getattr(self, "prev_hitcount", 0),
+            "itemcount": self.prev_items_count, "secretcount": self.prev_secrets_found,
+            "position_x": self.prev_position[0], "position_y": self.prev_position[1],
+        }
+        return paper_reward(previous, game_vars, self.visited_positions)
 
     def reset(self, seed=None, options=None):
         """Reset with additional tracking"""

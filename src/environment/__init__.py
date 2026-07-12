@@ -1,6 +1,10 @@
-"""Game environment wrappers"""
+"""Game environment wrappers with optional runtime dependencies."""
 
-from .chrome_dino_env import ChromeDinoEnv, SimpleDinoEnv
+try:
+    from .chrome_dino_env import ChromeDinoEnv, SimpleDinoEnv
+    CHROME_DINO_AVAILABLE = True
+except ImportError:
+    CHROME_DINO_AVAILABLE = False
 
 try:
     from .vizdoom_env import (ViZDoomEnv, ViZDoomEnvWithPaperReward,
@@ -9,4 +13,3 @@ try:
     VIZDOOM_AVAILABLE = True
 except ImportError:
     VIZDOOM_AVAILABLE = False
-    print("Warning: ViZDoom not available. Install with: pip install vizdoom")

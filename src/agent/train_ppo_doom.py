@@ -113,7 +113,7 @@ def make_env(config: dict, rank: int = 0):
             width=config["environment"]["resolution"]["width"],
             height=config["environment"]["resolution"]["height"],
             frame_skip=config["environment"].get("action_repeat", 4),
-            use_paper_reward=config.get("use_paper_reward", False),
+            use_paper_reward=config.get("use_paper_reward", config["agent"].get("reward_function") == "paper_doom"),
             visible=False,
         )
 
