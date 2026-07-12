@@ -1,6 +1,6 @@
 # ![DOOM Guy](./doom-guy.gif) GameNGen: Neural Game Engine
 
-> A complete implementation of GameNGen - the first game engine powered entirely by a neural network
+> Research implementation and reproduction roadmap for action-conditioned neural game engines.
 
 [![Paper](https://img.shields.io/badge/Paper-ICLR%202025-blue)](https://arxiv.org/abs/2408.14837)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
@@ -8,8 +8,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-![Status](https://img.shields.io/badge/Status-Implementation%20Complete-green)
-![Weights](https://img.shields.io/badge/Weights-Training%20in%20Progress-yellow)
+![Status](https://img.shields.io/badge/Status-Research%20scaffold-orange)
+![Weights](https://img.shields.io/badge/Weights-Not%20included-lightgrey)
 
 ---
 
@@ -17,7 +17,7 @@
 
 **GameNGen transforms video games from manually programmed code into neural network weights.** Instead of running game logic as traditional C++ code, the entire game—including physics, rendering, and state management—runs as a single forward pass through a diffusion model.
 
-This repository implements the breakthrough ICLR 2025 paper ["Diffusion Models Are Real-Time Game Engines"](https://arxiv.org/abs/2408.14837) by Google Research, providing **three progressive tiers** from proof-of-concept to full paper replication.
+This repository is an in-progress implementation inspired by the ICLR 2025 paper ["Diffusion Models Are Real-Time Game Engines"](https://arxiv.org/abs/2408.14837). It includes three intended tiers, but it is **not yet a paper-faithful reproduction**. See [the implementation roadmap](docs/IMPLEMENTATION_ROADMAP.md) for the audited gaps, current work, and validation gates.
 
 ### Why GameNGen Matters
 
@@ -33,28 +33,22 @@ User Input → Game Logic (C++ code) → Renderer → Screen Pixels
 User Input → Diffusion Model (neural weights) → Screen Pixels
 ```
 
-**The result:** A 943-million parameter neural network that can:
-
-- Play DOOM at 20 FPS (or 50 FPS with distillation)
-- Maintain game state for minutes of gameplay
-- Generate visuals indistinguishable from the real game (~50% human accuracy)
-- Achieve PSNR 29.4 (comparable to lossy JPEG compression)
+**The paper reports:** a 943-million parameter neural model that can simulate DOOM at 20 FPS on TPU hardware. This repository does not yet include trained weights or reproduced metrics, so those paper results must not be interpreted as local results.
 
 ---
 
 ## Project Status
 
-**Implementation:** Complete (All 3 tiers implemented and tested)
+**Implementation:** Foundation repairs in progress. Several core paths—dataset collection, evaluation, distillation, and advanced features—were previously incomplete or invalid and are being rebuilt.
 
-**Pretrained Weights:** Training in progress
+**Pretrained Weights:** Not included.
 
 **What's Available Now:**
 
-- Complete source code for all 3 tiers (12,000+ lines)
-- Comprehensive documentation (12 guides)
-- Configuration files for each tier
-- Test suites (all passing)
-- Professional setup and installation
+- Source code and tier configuration drafts
+- A versioned recording/data-contract foundation
+- Offline CPU unit tests for the repaired foundation
+- A full [implementation roadmap](docs/IMPLEMENTATION_ROADMAP.md)
 
 **Coming Soon:**
 
@@ -64,16 +58,7 @@ User Input → Diffusion Model (neural weights) → Screen Pixels
 - Demo videos
 - Evaluation results and benchmarks
 
-**Why Release Implementation Before Training?**
-
-This implementation represents significant engineering work (12,000+ lines) distilled into production-ready code. We're releasing it now so the community can:
-
-- Start training their own models immediately
-- Validate and improve the implementation
-- Build upon this foundation
-- Learn from a complete implementation
-
-Pretrained weights and demos will be added as training completes. **You can start training right now with the provided code!**
+The project is intended for contributors who want to help validate and improve the implementation. Do not start an expensive training run until the tier you need is marked supported and its environment/data-contract checks pass.
 
 ---
 
@@ -81,22 +66,19 @@ Pretrained weights and demos will be added as training completes. **You can star
 
 ### What This Implementation Provides
 
-- **Complete 3-Tier System** - Progressive implementation from simple (Chrome Dino) to complex (full DOOM)
-- **Production-Ready Code** - 12,000+ lines of tested, documented code
-- **Action-Conditioned Diffusion** - Modified Stable Diffusion v1.4 for interactive gameplay
-- **Real-Time Inference** - 4-step DDIM sampling (20 FPS) or 1-step distilled (50 FPS)
-- **Multiple RL Algorithms** - DQN for simple games, PPO for complex games
-- **Advanced Techniques** - Noise augmentation, decoder fine-tuning, model distillation
-- **Comprehensive Evaluation** - PSNR, LPIPS, SSIM, FVD metrics
-- **Extensive Documentation** - 12 guides covering every aspect
+- **Action-conditioned diffusion research path** - Stable Diffusion 1.4 adaptation under active repair
+- **Multiple RL algorithms** - DQN and PPO foundations
+- **Noise augmentation and decoder fine-tuning paths** - under validation
+- **Reproducible-data roadmap** - versioned NPZ recording shards and manifests
+- **Experimental modules** - distillation, FVD, human evaluation, memory, text conditioning, and modding are not yet supported claims
 
 ### Three-Tier Progressive Implementation
 
 | Tier | Game | Purpose | Time | Quality | Status |
 |------|------|---------|------|---------|--------|
-| **1** | Chrome Dino | Proof of concept, validate pipeline | 2-3 days | PSNR ~25-27 | Ready |
-| **2** | DOOM Lite | Production results, scaled training | 1 week | PSNR ~28-29 | Ready |
-| **3** | Full DOOM | Match paper exactly | 3-4 weeks | PSNR 29.4 | Ready |
+| **1** | Chrome Dino | Environment and data-contract validation | Unestimated | Not measured | In repair |
+| **2** | DOOM Lite | Small-scale integration validation | Unestimated | Not measured | In repair |
+| **3** | Full DOOM | Paper-reproduction target | Large-scale research | Not measured | Planned |
 
 ### Developer Tools & Advanced Features
 
@@ -116,37 +98,29 @@ Pretrained weights and demos will be added as training completes. **You can star
 - **Hierarchical Memory** - Extended context beyond 64 frames using compressed representations
 - **Multi-Scenario Training** - Train on multiple DOOM maps simultaneously
 
-**Enhanced Metrics** (Complete Paper Implementation):
-
-- **Proper FVD** - Fréchet Video Distance with I3D model
-- **Human Evaluation Framework** - Replicate paper's human study methodology
-- **Comprehensive Metrics** - PSNR, LPIPS, SSIM, FVD all implemented
+**Evaluation:** PSNR/LPIPS/FVD and human evaluation paths are being rebuilt. Current FVD, human-evaluation, and distillation implementations must not be used to support quality claims.
 
 ---
 
 ## Demo & Results
 
-### Coming Soon
+### Current availability
 
-**Training in Progress** - Demo videos and pretrained weights will be added as training completes:
+No trained weights, demo videos, or reproduced benchmarks are included. The next milestone is reliable environment collection and core diffusion validation, not a training-date estimate.
 
-- **Tier 1 weights:** ~3 days (Chrome Dino gameplay)
-- **Tier 2 weights:** ~1 week (DOOM Lite gameplay)
-- **Tier 3 weights:** ~4 weeks (Full DOOM, paper quality)
-
-### Expected Results (From Paper)
+### Paper reference results
 
 **Visual Quality:**
 
-- PSNR: 29.4 dB (comparable to lossy JPEG)
-- LPIPS: 0.249
-- Human evaluation: Only 58% accuracy distinguishing real vs. neural game
+- PSNR: 29.4 dB (paper result, not reproduced here)
+- LPIPS: 0.249 (paper result, not reproduced here)
+- Human evaluation: 58% accuracy distinguishing real from simulated clips (paper result, not reproduced here)
 
 **Performance:**
 
-- 20 FPS with 4-step sampling
-- 50 FPS with 1-step distilled model
-- Stable over multi-minute play sessions
+- 20 FPS with 4-step sampling on the paper's TPU hardware
+- 50 FPS with the paper's one-step distilled model on TPU hardware
+- These results require the paper's validated data, model, and hardware setup
 
 ---
 
@@ -154,10 +128,10 @@ Pretrained weights and demos will be added as training completes. **You can star
 
 ### Prerequisites
 
-- **Python:** 3.8 or higher
+- **Python:** 3.10 or higher
 - **GPU:** NVIDIA GPU with 8GB+ VRAM (16GB recommended)
 - **CUDA:** 11.0 or higher
-- **Storage:** 10GB free (250GB for Tier 3)
+- **Storage:** depends strongly on the selected dataset format and scale; see the roadmap before planning a full reproduction
 
 ### Quick Install
 
