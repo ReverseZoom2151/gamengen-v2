@@ -5,11 +5,8 @@ Includes PSNR, LPIPS, SSIM, FVD as used in the paper
 
 from typing import Dict
 
-import lpips
 import numpy as np
 import torch
-from scipy.linalg import sqrtm
-from skimage.metrics import structural_similarity as ssim
 
 
 class GameNGenEvaluator:
@@ -24,12 +21,16 @@ class GameNGenEvaluator:
     - MSE (Mean Squared Error)
     """
 
-    def __init__(self, device: str = "cuda"):
+    def __init__(self, device: str = "cuda", enable_lpips: bool = True):
         self.device = device
-
-        # Load LPIPS model
-        self.lpips_model = lpips.LPIPS(net="alex").to(device)
-        self.lpips_model.eval()
+        self.lpips_model = None
+        if enable_lpips:
+            try:
+                import lpips
+            except ImportError as error:
+                raise RuntimeError("LPIPS requires the optional metrics dependency") from error
+            self.lpips_model = lpips.LPIPS(net="alex").to(device)
+            self.lpips_model.eval()
 
         print(f"Evaluator initialized on {device}")
 
@@ -70,6 +71,8 @@ class GameNGenEvaluator:
         pred_norm = pred / 127.5 - 1.0
         target_norm = target / 127.5 - 1.0
 
+        if self.lpips_model is None:
+            raise RuntimeError("LPIPS is disabled for this evaluator")
         with torch.no_grad():
             lpips_val = self.lpips_model(pred_norm, target_norm)
 
@@ -94,7 +97,11 @@ class GameNGenEvaluator:
             pred_gray = pred.astype(np.uint8)
             target_gray = target.astype(np.uint8)
 
-        ssim_val = ssim(target_gray, pred_gray, data_range=255)
+        try:
+            from skimage.metrics import structural_similarity
+        except ImportError as error:
+            raise RuntimeError("SSIM requires the optional metrics dependency") from error
+        ssim_val = structural_similarity(target_gray, pred_gray, data_range=255)
 
         return ssim_val
 
@@ -145,103 +152,6 @@ class GameNGenEvaluator:
         return metrics
 
 
-class FVDCalculator:
-    """
-    Fréchet Video Distance (FVD) Calculator
-    Paper Section 5.1: "We measure the FVD computed over a random holdout"
-
-    FVD measures distance between distributions of videos
-    """
-
-    def __init__(self, device: str = "cuda"):
-        self.device = device
-
-        # Note: Full FVD requires I3D model (Inception 3D)
-        # For simplicity, we use a feature extractor
-        # Full implementation would need: pip install pytorch-fvd
-        print("FVD Calculator initialized")
-        print("Note: Full FVD requires I3D model (see pytorch-fvd package)")
-
-    def extract_features(self, videos: torch.Tensor) -> torch.Tensor:
-        """
-        Extract features from videos
-
-        Args:
-            videos: (N, T, C, H, W) - N videos, T frames each
-
-        Returns:
-            features: (N, feature_dim)
-        """
-        # Simplified feature extraction
-        # In practice, use I3D model
-        # For now, use simple statistics as placeholder
-
-        N, T, C, H, W = videos.shape
-
-        # Temporal mean and std
-        features = []
-
-        for video in videos:
-            # Spatial features
-            spatial_mean = video.mean(dim=[1, 2, 3])  # (T,)
-            spatial_std = video.std(dim=[1, 2, 3])  # (T,)
-
-            # Temporal features
-            temporal_mean = video.mean(dim=0).flatten()  # Flatten spatial
-            temporal_std = video.std(dim=0).flatten()
-
-            # Combine
-            feat = torch.cat(
-                [
-                    spatial_mean,
-                    spatial_std,
-                    temporal_mean[:100],  # Take first 100
-                    temporal_std[:100],
-                ]
-            )
-
-            features.append(feat)
-
-        features = torch.stack(features)  # (N, feature_dim)
-
-        return features
-
-    def compute_fvd(
-        self, real_videos: torch.Tensor, fake_videos: torch.Tensor
-    ) -> float:
-        """
-        Compute FVD between real and generated videos
-
-        Args:
-            real_videos: (N, T, C, H, W)
-            fake_videos: (N, T, C, H, W)
-
-        Returns:
-            FVD score
-        """
-        # Extract features
-        real_features = self.extract_features(real_videos).cpu().numpy()
-        fake_features = self.extract_features(fake_videos).cpu().numpy()
-
-        # Compute mean and covariance
-        mu_real = np.mean(real_features, axis=0)
-        mu_fake = np.mean(fake_features, axis=0)
-
-        sigma_real = np.cov(real_features, rowvar=False)
-        sigma_fake = np.cov(fake_features, rowvar=False)
-
-        # Fréchet distance
-        diff = mu_real - mu_fake
-        covmean = sqrtm(sigma_real @ sigma_fake)
-
-        if np.iscomplexobj(covmean):
-            covmean = covmean.real
-
-        fvd = np.sum(diff**2) + np.trace(sigma_real + sigma_fake - 2 * covmean)
-
-        return fvd
-
-
 def evaluate_model_comprehensive(
     model,
     dataloader,
@@ -275,11 +185,8 @@ def evaluate_model_comprehensive(
     all_ssim = []
     all_mse = []
 
-    # For FVD
     if compute_fvd:
-        fvd_calc = FVDCalculator(device=device)
-        real_trajectories = []
-        fake_trajectories = []
+        raise NotImplementedError("use src.utils.fvd with paired real/fake trajectories")
 
     model.eval()
 
