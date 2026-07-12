@@ -14,6 +14,7 @@ Engines*. It is an implementation-status document, not a reproduction result.
 | Velocity prediction | Implemented | Mathematical target has a unit fixture; no end-to-end model fixture |
 | 4-step DDIM | Configured | Runtime speed/quality has not been measured locally |
 | Adafactor, no weight decay | Configured | Uses maintained Transformers implementation when optional dependency is installed |
+| EMA validation/sampling weights | Implemented enhancement | Checkpointed EMA is used for validation and inference when present; this is a stability enhancement, not a paper-matched setting |
 | PPO, 8 parallel games, 10M steps | Partially implemented | Tier 3 uses 160×120 screen/automap observations and the prior 32 applied actions through PPO's multi-input policy. The paper does not quantify its action-repeat increase; Tier 3's 0.2 value is an explicit approximation. A real runtime run is still required |
 | 900M recorded frames | Configured target | No such corpus is included |
 | Decoder-only fine-tuning | Experimental | Artifacts are provenance-tagged/loadable; no quality result exists |

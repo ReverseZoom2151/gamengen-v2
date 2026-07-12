@@ -3,10 +3,11 @@
 from .dataset import GameplayDataset, create_dataloader, create_dataloaders
 from .conditioning import ActionEmbedding, NoiseAugmentationEmbedding
 from .optimizers import create_optimizer
+from .ema import ExponentialMovingAverage
 
 __all__ = [
     "ActionEmbedding", "GameplayDataset", "NoiseAugmentationEmbedding",
-    "create_dataloader", "create_dataloaders", "create_optimizer",
+    "create_dataloader", "create_dataloaders", "create_optimizer", "ExponentialMovingAverage",
 ]
 
 try:

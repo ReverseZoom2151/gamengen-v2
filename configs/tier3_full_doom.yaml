@@ -121,6 +121,11 @@ diffusion:
   cfg_drop_prob: 0.1  # Drop context 10% of time
   cfg_scale: 1.5  # Paper uses small guidance
 
+  # EMA is a reproducibility/stability enhancement, not a paper-matched claim.
+  ema:
+    enabled: true
+    decay: 0.9999
+
   # Checkpointing
   save_every_n_steps: 5000
   eval_every_n_steps: 5000

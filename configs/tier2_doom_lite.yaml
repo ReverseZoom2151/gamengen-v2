@@ -96,6 +96,11 @@ diffusion:
   cfg_drop_prob: 0.1
   cfg_scale: 1.5
 
+  # Validate and sample from stable EMA weights while retaining raw resume state.
+  ema:
+    enabled: true
+    decay: 0.9999
+
   # Checkpointing (more frequent for longer training)
   save_every_n_steps: 1000
   eval_every_n_steps: 1000

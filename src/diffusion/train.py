@@ -18,6 +18,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from src.config import load_config, validate_diffusion_training_config
 from src.diffusion.dataset import create_dataloaders
 from src.diffusion.artifacts import model_state_from_checkpoint
+from src.diffusion.ema import ExponentialMovingAverage
 from src.diffusion.optimizers import create_optimizer
 from src.utils.training import (
     atomic_torch_save,
@@ -74,7 +75,10 @@ def train_microbatch(model, batch: dict, scaler: GradScaler, accumulation_steps:
 
 
 @torch.no_grad()
-def evaluate(model, dataloader, num_batches: int = 10) -> dict:
+def evaluate(model, dataloader, num_batches: int = 10, ema: ExponentialMovingAverage | None = None) -> dict:
+    if ema is not None:
+        with ema.average_parameters(model):
+            return evaluate(model, dataloader, num_batches=num_batches)
     model.eval()
     total_loss = total_psnr = 0.0
     num_samples = 0
@@ -97,10 +101,10 @@ def evaluate(model, dataloader, num_batches: int = 10) -> dict:
 
 def _checkpoint_payload(
     model, optimizer, scheduler, scaler, step: int, config: dict, split_manifest_path: Path,
-    best_validation_loss: float,
+    best_validation_loss: float, ema: ExponentialMovingAverage | None = None,
 ) -> dict:
     return {
-        "format_version": 2,
+        "format_version": 3,
         "step": step,
         "best_validation_loss": best_validation_loss,
         "model": {
@@ -112,6 +116,7 @@ def _checkpoint_payload(
         "optimizer": optimizer.state_dict(),
         "scheduler": scheduler.state_dict(),
         "scaler": scaler.state_dict(),
+        "ema": ema.state_dict() if ema is not None else None,
         "rng_state": capture_rng_state(),
         "run_manifest": build_run_manifest(
             config,
@@ -122,7 +127,8 @@ def _checkpoint_payload(
     }
 
 
-def _restore_checkpoint(path: Path, model, optimizer, scheduler, scaler, device: torch.device) -> tuple[int, float]:
+def _restore_checkpoint(path: Path, model, optimizer, scheduler, scaler, device: torch.device,
+                        ema: ExponentialMovingAverage | None = None) -> tuple[int, float]:
     checkpoint = torch.load(path, map_location=device, weights_only=False)
     model_state = model_state_from_checkpoint(checkpoint)
     for name in ("unet", "noise_aug_embedding", "action_proj"):
@@ -136,6 +142,8 @@ def _restore_checkpoint(path: Path, model, optimizer, scheduler, scaler, device:
         scaler.load_state_dict(checkpoint["scaler"])
     if "rng_state" in checkpoint:
         restore_rng_state(checkpoint["rng_state"])
+    if ema is not None and checkpoint.get("ema") is not None:
+        ema.load_state_dict(checkpoint["ema"])
     return int(checkpoint["step"]), float(checkpoint.get("best_validation_loss", float("inf")))
 
 
@@ -181,9 +189,15 @@ def train(config: dict) -> None:
         optimizer = create_optimizer(diffusion.get("optimizer", "AdamW"), model.parameters(), diffusion)
         scheduler = make_scheduler(optimizer, diffusion.get("lr_scheduler", "constant"), diffusion.get("warmup_steps", 0), diffusion["num_train_steps"])
         scaler = GradScaler("cuda", enabled=use_amp)
+        ema_config = diffusion.get("ema", {})
+        ema = (
+            ExponentialMovingAverage(model, decay=float(ema_config.get("decay", 0.9999)))
+            if ema_config.get("enabled", True)
+            else None
+        )
         latest = output_dir / "latest_checkpoint.pt"
         global_step, best_validation_loss = (
-            _restore_checkpoint(latest, model, optimizer, scheduler, scaler, device)
+            _restore_checkpoint(latest, model, optimizer, scheduler, scaler, device, ema=ema)
             if latest.exists()
             else (0, float("inf"))
         )
@@ -204,6 +218,8 @@ def train(config: dict) -> None:
             scaler.step(optimizer)
             scaler.update()
             scheduler.step()
+            if ema is not None:
+                ema.update(model)
             global_step += 1
             running_loss += step_loss / accumulation
             progress.update(1)
@@ -224,7 +240,7 @@ def train(config: dict) -> None:
                 tracker.log(tracked, global_step)
                 running_loss, start_time = 0.0, time.time()
             if global_step % eval_every == 0:
-                metrics = evaluate(model, validation_loader)
+                metrics = evaluate(model, validation_loader, ema=ema)
                 writer.add_scalar("validation/loss", metrics["loss"], global_step)
                 writer.add_scalar("validation/psnr", metrics["psnr"], global_step)
                 tracker.log({"validation/loss": metrics["loss"], "validation/psnr": metrics["psnr"]}, global_step)
@@ -232,14 +248,14 @@ def train(config: dict) -> None:
                     best_validation_loss = metrics["loss"]
                     best_payload = _checkpoint_payload(
                         model, optimizer, scheduler, scaler, global_step, config,
-                        output_dir / "validation_split.json", best_validation_loss,
+                        output_dir / "validation_split.json", best_validation_loss, ema=ema,
                     )
                     atomic_torch_save(best_payload, output_dir / "best_checkpoint.pt")
             if global_step % save_every == 0 or global_step == diffusion["num_train_steps"]:
                 payload = _checkpoint_payload(
                     model, optimizer, scheduler, scaler, global_step, config,
                     output_dir / "validation_split.json",
-                    best_validation_loss,
+                    best_validation_loss, ema=ema,
                 )
                 checkpoint_file = output_dir / f"checkpoint_step_{global_step}.pt"
                 atomic_torch_save(payload, checkpoint_file)

@@ -7,6 +7,7 @@ from src.diffusion.artifacts import model_state_from_checkpoint
 def test_diffusion_package_exports_lightweight_components_without_diffusers():
     assert diffusion.create_dataloaders.__name__ == "create_dataloaders"
     assert diffusion.create_optimizer.__name__ == "create_optimizer"
+    assert diffusion.ExponentialMovingAverage.__name__ == "ExponentialMovingAverage"
 
 
 def test_checkpoint_artifact_requires_every_model_component():

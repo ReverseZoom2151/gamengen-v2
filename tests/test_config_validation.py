@@ -96,3 +96,10 @@ def test_validate_config_rejects_invalid_action_bias_and_non_doom_automap():
     config["agent"]["observation"] = {"include_automap": True}
     with pytest.raises(ConfigError, match="only supported by vizdoom"):
         validate_config(config)
+
+
+def test_validate_config_rejects_invalid_ema_settings():
+    config = valid_config()
+    config["diffusion"]["ema"] = {"decay": 1.0}
+    with pytest.raises(ConfigError, match="ema.decay"):
+        validate_config(config)

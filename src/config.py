@@ -131,6 +131,16 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         if noise.get("enabled", True) and noise.get("max_noise_level", 0) <= 0:
             raise ConfigError("enabled diffusion.noise_augmentation.max_noise_level must be positive")
 
+    ema = diffusion.get("ema")
+    if ema is not None:
+        if not isinstance(ema, dict):
+            raise ConfigError("diffusion.ema must be a mapping")
+        if "enabled" in ema and not isinstance(ema["enabled"], bool):
+            raise ConfigError("diffusion.ema.enabled must be a boolean")
+        if "decay" in ema:
+            if isinstance(ema["decay"], bool) or not isinstance(ema["decay"], Real) or not 0 < ema["decay"] < 1:
+                raise ConfigError("diffusion.ema.decay must be strictly between 0 and 1")
+
     if "action_repeat" in environment and (not isinstance(environment["action_repeat"], int) or environment["action_repeat"] <= 0):
         raise ConfigError("environment.action_repeat must be a positive integer")
 

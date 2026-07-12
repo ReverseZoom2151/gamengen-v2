@@ -21,6 +21,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from src.diffusion.model import ActionConditionedDiffusionModel
 from src.diffusion.conditioning import condition_current_action
 from src.diffusion.artifacts import model_state_from_checkpoint
+from src.diffusion.ema import apply_ema_state
 from src.environment.chrome_dino_env import SimpleDinoEnv
 from src.config import load_config
 
@@ -408,6 +409,11 @@ def main():
         default=10,
         help="Number of trajectories (evaluate mode)",
     )
+    parser.add_argument(
+        "--no-ema",
+        action="store_true",
+        help="Use raw checkpoint parameters even when EMA weights are available",
+    )
 
     args = parser.parse_args()
 
@@ -438,6 +444,9 @@ def main():
     model.action_embedding.load_state_dict(model_state["action_embedding"], strict=False)
     model.noise_aug_embedding.load_state_dict(model_state["noise_aug_embedding"])
     model.action_proj.load_state_dict(model_state["action_proj"])
+    if checkpoint.get("ema") is not None and not args.no_ema:
+        apply_ema_state(model, checkpoint["ema"])
+        print("✓ Applied checkpoint EMA weights")
 
     model.eval()
 

@@ -5,6 +5,7 @@ import torch
 import pytest
 
 from src.diffusion.train import _checkpoint_payload, make_scheduler, train_microbatch
+from src.diffusion.ema import ExponentialMovingAverage
 from src.utils.training import atomic_torch_save, capture_rng_state, restore_rng_state, seed_everything
 
 
@@ -67,3 +68,23 @@ def test_checkpoint_payload_preserves_best_validation_loss(tmp_path):
         {"experiment_name": "test"}, tmp_path / "split.json", 0.25,
     )
     assert payload["best_validation_loss"] == 0.25
+
+
+def test_checkpoint_payload_includes_ema_when_enabled(tmp_path):
+    class Model(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.unet = torch.nn.Linear(1, 1)
+            self.action_embedding = torch.nn.Linear(1, 1)
+            self.noise_aug_embedding = torch.nn.Linear(1, 1)
+            self.action_proj = torch.nn.Linear(1, 1)
+
+    model = Model()
+    optimizer = torch.optim.SGD(model.parameters(), lr=1.0)
+    scheduler = make_scheduler(optimizer, "constant", 0, 1)
+    ema = ExponentialMovingAverage(model)
+    payload = _checkpoint_payload(
+        model, optimizer, scheduler, torch.amp.GradScaler("cuda", enabled=False), 3,
+        {"experiment_name": "test"}, tmp_path / "split.json", 0.25, ema=ema,
+    )
+    assert payload["ema"]["num_updates"] == 0
