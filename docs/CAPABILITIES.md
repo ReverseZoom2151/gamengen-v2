@@ -12,6 +12,7 @@ This document distinguishes implemented code from validated functionality.
 | Interactive game initialization | Implemented and unit-tested | Inference now selects real Chrome Dino or ViZDoom from the validated config; it no longer silently substitutes a placeholder Dino environment for DOOM |
 | Stable Diffusion training | In repair | Configured optimizer/scheduler/accumulation, EMA validation/sampling weights, episode-held-out validation, and resumable checkpoints are implemented; no reproduced checkpoint exists |
 | Action counterfactual grid | Implemented and unit-tested | Identical contexts are generated under selected current actions; zero pairwise change is reported as control collapse rather than a successful control result |
+| Sampling-step sweep | Implemented and unit-tested | Uses fixed held-out batches and per-setting RNG to report PSNR proxy and latency across DDIM step counts; no local performance result is included |
 | Decoder fine-tuning | Experimental | Artifacts are provenance-tagged and loadable; end-to-end evaluation remains incomplete |
 | Distillation | Quarantined / unavailable | Command fails explicitly; do not use for research claims |
 | FVD | Experimental / unavailable | Invalid self-comparison is rejected; pretrained I3D and paired trajectory workflow remain required |

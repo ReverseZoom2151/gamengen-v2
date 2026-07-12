@@ -6,6 +6,7 @@ Includes PSNR, LPIPS, SSIM, FVD as used in the paper
 import json
 import os
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Dict, Mapping
 
@@ -172,6 +173,79 @@ def save_evaluation_report(
         temporary = handle.name
     os.replace(temporary, destination)
     return destination
+
+
+@torch.no_grad()
+def evaluate_sampling_step_sweep(
+    model,
+    dataloader,
+    sampling_steps: list[int],
+    device: str = "cpu",
+    max_batches: int = 10,
+    guidance_scale: float = 1.5,
+    seed: int = 0,
+) -> dict:
+    """Measure fixed-data quality proxies and latency for sampling-step choices.
+
+    Evaluation batches are materialized once, so every setting observes exactly
+    the same transitions. Each setting also starts from the same torch RNG
+    state. The result is a report-ready measurement, not a benchmark claim.
+    """
+    if not sampling_steps or any(not isinstance(step, int) or step <= 0 for step in sampling_steps):
+        raise ValueError("sampling_steps must contain positive integers")
+    if len(set(sampling_steps)) != len(sampling_steps):
+        raise ValueError("sampling_steps must be unique")
+    if max_batches <= 0:
+        raise ValueError("max_batches must be positive")
+    batches = []
+    for batch in dataloader:
+        batches.append(batch)
+        if len(batches) == max_batches:
+            break
+    if not batches:
+        raise ValueError("evaluation dataloader yielded no batches")
+
+    was_training = bool(getattr(model, "training", False))
+    model.eval()
+    settings = []
+    try:
+        for steps in sampling_steps:
+            total_squared_error = total_elements = 0
+            generated_frames = 0
+            started = time.perf_counter()
+            with torch.random.fork_rng():
+                torch.manual_seed(seed)
+                for batch in batches:
+                    context_frames = batch["context_frames"].to(device)
+                    context_actions = batch["context_actions"].to(device)
+                    target = batch["target_frame"].to(device)
+                    generated = model.generate(
+                        context_frames,
+                        context_actions,
+                        num_inference_steps=steps,
+                        guidance_scale=guidance_scale,
+                    )
+                    total_squared_error += torch.sum((generated - target) ** 2).item()
+                    total_elements += target.numel()
+                    generated_frames += target.shape[0]
+            elapsed = max(time.perf_counter() - started, 1e-12)
+            mse = total_squared_error / total_elements
+            settings.append({
+                "num_inference_steps": steps,
+                "mse": mse,
+                "psnr": float("inf") if mse == 0 else 20 * np.log10(255.0) - 10 * np.log10(mse),
+                "elapsed_seconds": elapsed,
+                "seconds_per_frame": elapsed / generated_frames,
+                "frames_per_second": generated_frames / elapsed,
+            })
+    finally:
+        model.train(was_training)
+    return {
+        "fixed_seed": seed,
+        "num_batches": len(batches),
+        "guidance_scale": guidance_scale,
+        "settings": settings,
+    }
 
 
 def evaluate_model_comprehensive(
