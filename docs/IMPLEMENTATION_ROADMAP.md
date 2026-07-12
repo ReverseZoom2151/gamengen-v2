@@ -77,39 +77,29 @@ The finished project should distinguish two profiles explicitly:
 - The only existing worktree difference at planning time is the local `/repos/` entry in `.gitignore`.
 - The external repositories are local research references and are not intended to be committed as part of the main project.
 - Python syntax parses successfully across the workspace.
-- Pytest collects 19 main-project tests, but the current suite is not a reliable quality signal.
-- The development linters declared in `requirements-dev.txt` are not installed in the current environment.
+- The offline suite currently has contract coverage for data, configuration, conditioning, provenance, metrics, and package imports; it is not a substitute for game/model integration evidence.
+- Full legacy-script lint cleanup remains outstanding; CI enforces the stable public-package lint boundary.
 
 ### 3.2 Critical correctness findings
 
 #### Environment and agent
 
-- Tier 1 trains against `SimpleDinoEnv`, which emits synthetic/random observations rather than Chrome Dino gameplay.
-- The ViZDoom action vectors are hard-coded instead of being derived from enabled scenario buttons.
-- ViZDoom game variables are interpreted by array position rather than named `GameVariable` values.
-- Frame-skip rewards are accumulated and then discarded in favor of only the last reward.
-- The paper reward is incomplete.
+- Tier 1 defaults to real Chrome Dino; the deterministic mock is explicit test-only support.
+- ViZDoom actions are projected to enabled scenario buttons, named variables drive rewards, and frame-skip rewards are accumulated.
+- The configured ten-term reward has dependency-free delta fixtures, but no scenario-level paper validation exists.
 - The PPO agent does not receive the paper's map input or previous 32 actions.
 - Tier 2 and Tier 3 configuration fields do not line up with the keys consumed by PPO training.
 
 #### Recording and datasets
 
-- Eight PPO environments write into one shared episode buffer, interleaving unrelated trajectories.
-- DQN and PPO use different action/frame alignment semantics.
-- Batch naming can overwrite the previously written full batch when a partial final batch is flushed.
-- Restarting collection can reuse earlier batch IDs.
-- `compress` is recorded in metadata but no compression is performed.
-- `finalize()` does not guarantee that an unfinished current episode is handled explicitly.
-- PPO observations can be channel-first while the diffusion dataset assumes channel-last input.
-- Dataset startup unpickles every shard and builds one Python dictionary per overlapping window.
-- A cache miss can reload a full pickle batch for a single sample.
-- Unrestricted pickle loading is unsafe for untrusted data.
+- Recording now uses isolated buffers, canonical transitions, atomic monotonic NPZ shards, checksums, resume metadata, and explicit unfinished-episode flushing.
+- New shards use compressed NPZ when configured; legacy pickles are trusted-input migration only.
+- HWC/CHW normalization, bounded decoded-shard caching, and persistent episode-disjoint split manifests are implemented.
 
 #### Core diffusion model
 
 - Velocity prediction, scheduler device/dtype handling, and observation CFG dropout have been corrected; fixture-level mathematical verification remains to be added.
-- The interactive player applies a user's action after generating the frame, creating a one-frame control lag.
-- The same action-timing error exists in modding and video-export paths.
+- Current-action conditioning is centralized and tested for interactive inference, modding, and hierarchical memory.
 - Mixed-precision evaluation does not consistently use autocast or cast inputs to component dtype.
 - The configured inference context-noise level is not fully integrated.
 - Decoder artifacts are now provenance-tagged and inference-loadable; no end-to-end quality validation exists yet.
@@ -122,24 +112,22 @@ The finished project should distinguish two profiles explicitly:
 
 #### Evaluation and advanced modules
 
-- The FVD trajectory helper assigns a generated trajectory as its own real reference.
-- The fallback I3D implementation does not provide a paper-comparable FVD score.
-- The human-evaluation code does not implement a real blinded comparison workflow.
-- Distillation does not execute the teacher correctly and does not train the fake-score model correctly.
-- Hierarchical memory does not affect generation and assumes incompatible latent spatial dimensions.
+- FVD now rejects invalid self-comparison and requires paired trajectories/pretrained I3D; a paper-comparable feature setup is still absent.
+- Human protocols are blinded with a separate answer key, but no study UI/results exist.
+- Distillation is explicitly quarantined pending a validated three-network objective.
+- Hierarchical memory accepts real latent sizes but remains an unvalidated conditioning extension.
 - Text conditioning contains an untrained projection path.
 - Interactive inference is hard-coded to Dino behavior even when supplied DOOM configs.
 
 #### Packaging, CI, and documentation
 
-- The installed package is named `src` rather than `gamengen`.
-- `setup.py` reports version `0.1.0` while documentation claims `1.0.0`.
-- Optional and required dependencies are mixed together.
+- `gamengen` is the public package and `src` remains a compatibility namespace.
+- Conflicting `setup.py` metadata is removed; pyproject version/dependency extras are authoritative.
 - ViZDoom is used by Tier 2/3 but absent from the primary dependency file.
 - CI runs a script that expects missing paths, treats CPU-only execution as failure, and may fail to import the project when executed directly.
 - Several pytest functions catch errors and return `False`, which does not fail pytest correctly.
 - Some tests instantiate or download Stable Diffusion and are not suitable for offline CI.
-- README claims such as “production-ready,” “all tests passing,” “12 guides,” and paper-equivalent evaluation are not currently supported.
+- README capability claims have been rewritten around verified artifacts and remaining gates.
 
 ## 4. Paper-fidelity matrix
 
