@@ -53,6 +53,12 @@ These are development entry points, not guarantees of a ready-to-train or
 paper-reproducing system. They need real game runtimes, data recordings,
 external model access, and environment-specific validation.
 
+Run a mode-specific dependency preflight before starting one:
+
+```bash
+python -m src.preflight --config configs/tier2_doom_lite.yaml --mode train
+```
+
 ## Architecture
 
 The intended pipeline is:
