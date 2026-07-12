@@ -37,6 +37,8 @@ python -m pytest -q
 Python 3.10+ is required. GPU model training requires an independently
 configured supported PyTorch/CUDA installation. Optional game and model
 dependencies are intentionally not installed by the offline test path.
+See [dependency policy](docs/DEPENDENCY_POLICY.md) for version and platform
+compatibility rules.
 
 ## Commands
 
