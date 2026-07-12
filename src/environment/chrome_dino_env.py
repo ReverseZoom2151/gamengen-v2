@@ -7,15 +7,9 @@ import io
 import time
 from typing import Any, Dict, Optional, Tuple
 
-import cv2
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
-from PIL import Image
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 
 
 class ChromeDinoEnv(gym.Env):
@@ -66,6 +60,10 @@ class ChromeDinoEnv(gym.Env):
 
     def _init_driver(self):
         """Initialize Chrome driver with Dino game"""
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.common.by import By
+
         chrome_options = Options()
         chrome_options.add_argument("--headless")  # Run without GUI
         chrome_options.add_argument("--disable-gpu")
@@ -94,11 +92,14 @@ class ChromeDinoEnv(gym.Env):
             """
             state = self.driver.execute_script(script)
             return state
-        except Exception as e:
-            return {"crashed": False, "playing": False, "score": 0}
+        except Exception as exc:
+            raise RuntimeError("could not read Chrome Dino game state") from exc
 
     def _capture_frame(self) -> np.ndarray:
         """Capture game frame as numpy array"""
+        import cv2
+        from PIL import Image
+
         # Get screenshot
         png = self.driver.get_screenshot_as_png()
         img = Image.open(io.BytesIO(png))
@@ -119,17 +120,17 @@ class ChromeDinoEnv(gym.Env):
 
     def _send_action(self, action: int):
         """Send action to game"""
-        try:
-            body = self.driver.find_element(By.TAG_NAME, "body")
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.common.keys import Keys
 
-            if action == 1:  # Jump
-                body.send_keys(Keys.SPACE)
-            elif action == 2:  # Duck
-                body.send_keys(Keys.ARROW_DOWN)
-            # action == 0: do nothing
+        body = self.driver.find_element(By.TAG_NAME, "body")
 
-        except Exception as e:
-            print(f"Error sending action: {e}")
+        if action == 1:  # Jump
+            body.send_keys(Keys.SPACE)
+        elif action == 2:  # Duck
+            body.send_keys(Keys.ARROW_DOWN)
+        elif action != 0:
+            raise ValueError(f"invalid Chrome Dino action: {action}")
 
     def reset(
         self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
@@ -144,8 +145,11 @@ class ChromeDinoEnv(gym.Env):
         # Restart game
         try:
             self.driver.execute_script("Runner.instance_.restart()")
-        except:
+        except Exception:
             # If game not started, send space to start
+            from selenium.webdriver.common.by import By
+            from selenium.webdriver.common.keys import Keys
+
             body = self.driver.find_element(By.TAG_NAME, "body")
             body.send_keys(Keys.SPACE)
 
@@ -166,11 +170,10 @@ class ChromeDinoEnv(gym.Env):
         if not self.game_started:
             raise RuntimeError("Call reset() before step()")
 
-        # Send action
-        self._send_action(action)
-
-        # Wait for frame update
-        time.sleep(0.05)  # ~20 FPS
+        # Send action and advance the requested number of game frames.
+        for _ in range(self.frame_skip):
+            self._send_action(action)
+            time.sleep(0.05)  # ~20 FPS
 
         # Get game state
         state = self._get_game_state()
@@ -272,8 +275,12 @@ class SimpleDinoEnv(gym.Env):
     def step(self, action):
         self.frame_count += 1
 
-        # Dummy implementation
-        obs = np.random.randint(0, 255, (self.height, self.width, 3), dtype=np.uint8)
+        # Deterministic placeholder observation.  This environment is intended
+        # only for CPU tests; training defaults to ChromeDinoEnv.
+        obs = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+        obs[-4:, :, :] = 255
+        obstacle_x = self.width - (self.frame_count % self.width) - 1
+        obs[self.height - 24 : self.height - 4, max(0, obstacle_x - 2) : obstacle_x + 2] = 255
         reward = 0.1
         self.game_over = self.frame_count > 1000
         truncated = False

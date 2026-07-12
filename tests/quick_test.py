@@ -8,6 +8,10 @@ __test__ = False
 import sys
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 
 def test_imports():
     """Test if all required packages can be imported"""
@@ -60,8 +64,8 @@ def test_cuda():
         )
         return True
     else:
-        print(f"  ⚠ CUDA not available, will use CPU")
-        return False
+        print(f"  ⚠ CUDA not available; CPU-only diagnostics remain supported")
+        return True
 
 
 def test_project_structure():
@@ -73,10 +77,9 @@ def test_project_structure():
         "src/diffusion",
         "src/environment",
         "src/utils",
-        "data/recordings",
-        "checkpoints",
-        "logs",
-        "config.yaml",
+        "configs/tier1_chrome_dino.yaml",
+        "configs/tier2_doom_lite.yaml",
+        "configs/tier3_full_doom.yaml",
         "requirements.txt",
     ]
 

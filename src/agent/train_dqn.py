@@ -3,6 +3,7 @@ Train DQN Agent on Chrome Dino and record gameplay
 """
 
 import argparse
+import random
 import sys
 from pathlib import Path
 
@@ -15,7 +16,7 @@ from tqdm import tqdm
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.agent.dqn_agent import DQNAgent
-from src.environment.chrome_dino_env import SimpleDinoEnv
+from src.environment.chrome_dino_env import ChromeDinoEnv, SimpleDinoEnv
 from src.utils.data_recorder import EpisodeRecorder
 
 
@@ -24,6 +25,7 @@ def train_dqn_agent(config: dict):
 
     # Set random seeds
     seed = config.get("seed", 42)
+    random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
 
@@ -38,12 +40,17 @@ def train_dqn_agent(config: dict):
     print("Creating environment...")
     env_config = config["environment"]
 
-    # Use SimpleDinoEnv for now (easier to set up)
-    # TODO: Switch to ChromeDinoEnv when ready
-    env = SimpleDinoEnv(
-        width=env_config["resolution"]["width"],
-        height=env_config["resolution"]["height"],
-    )
+    env_kwargs = {
+        "width": env_config["resolution"]["width"],
+        "height": env_config["resolution"]["height"],
+    }
+    if env_config.get("use_mock", False):
+        env = SimpleDinoEnv(**env_kwargs)
+    else:
+        env = ChromeDinoEnv(
+            **env_kwargs,
+            frame_skip=env_config.get("action_repeat", 1),
+        )
 
     print(f"Environment: {env}")
     print(f"Observation space: {env.observation_space}")
@@ -99,7 +106,7 @@ def train_dqn_agent(config: dict):
     global_step = 0
 
     for episode in tqdm(range(total_episodes), desc="Training"):
-        state, info = env.reset()
+        state, info = env.reset(seed=seed + episode)
         episode_reward = 0
         episode_length = 0
         done = False

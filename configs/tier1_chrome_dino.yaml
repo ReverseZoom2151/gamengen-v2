@@ -25,6 +25,7 @@ environment:
   frame_stack: 4
   action_repeat: 1
   grayscale: false
+  use_mock: false  # Set true only for deterministic unit-test diagnostics
 
 # RL Agent Settings (DQN)
 agent:
