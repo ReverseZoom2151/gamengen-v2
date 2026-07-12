@@ -27,6 +27,7 @@ class ActionConditionedDiffusionModel(nn.Module):
     def __init__(
         self,
         pretrained_model_name: str = "CompVis/stable-diffusion-v1-4",
+        pretrained_revision: Optional[str] = None,
         num_actions: int = 3,
         action_embedding_dim: int = 128,
         context_length: int = 32,
@@ -47,23 +48,26 @@ class ActionConditionedDiffusionModel(nn.Module):
         self.max_noise_level = max_noise_level
         self.cfg_drop_prob = cfg_drop_prob
         self.prediction_type = prediction_type
+        self.pretrained_model_name = pretrained_model_name
+        self.pretrained_revision = pretrained_revision
         self.device = device
         self.dtype = dtype
 
-        print(f"Loading Stable Diffusion v1.4 from {pretrained_model_name}...")
+        source = f"{pretrained_model_name}@{pretrained_revision}" if pretrained_revision else pretrained_model_name
+        print(f"Loading Stable Diffusion v1.4 from {source}...")
 
         # Load pretrained components
         self.vae = AutoencoderKL.from_pretrained(
-            pretrained_model_name, subfolder="vae", torch_dtype=dtype
+            pretrained_model_name, subfolder="vae", torch_dtype=dtype, revision=pretrained_revision
         ).to(device)
 
         self.unet = UNet2DConditionModel.from_pretrained(
-            pretrained_model_name, subfolder="unet", torch_dtype=dtype
+            pretrained_model_name, subfolder="unet", torch_dtype=dtype, revision=pretrained_revision
         ).to(device)
 
         # Initialize scheduler for training and inference
         self.noise_scheduler = DDIMScheduler.from_pretrained(
-            pretrained_model_name, subfolder="scheduler"
+            pretrained_model_name, subfolder="scheduler", revision=pretrained_revision
         )
         self.noise_scheduler.register_to_config(prediction_type=prediction_type)
 
@@ -75,6 +79,8 @@ class ActionConditionedDiffusionModel(nn.Module):
             checkpoint = torch.load(decoder_checkpoint, map_location=device, weights_only=False)
             if checkpoint.get("base_model") not in (None, pretrained_model_name):
                 raise ValueError("decoder checkpoint was trained from a different base model")
+            if checkpoint.get("base_model_revision") not in (None, pretrained_revision):
+                raise ValueError("decoder checkpoint was trained from a different base-model revision")
             self.vae.decoder.load_state_dict(checkpoint["decoder"])
 
         # Action embedding layer

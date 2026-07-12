@@ -103,3 +103,10 @@ def test_validate_config_rejects_invalid_ema_settings():
     config["diffusion"]["ema"] = {"decay": 1.0}
     with pytest.raises(ConfigError, match="ema.decay"):
         validate_config(config)
+
+
+def test_validate_config_rejects_non_immutable_model_revision():
+    config = valid_config()
+    config["diffusion"]["pretrained_revision"] = "main"
+    with pytest.raises(ConfigError, match="pretrained_revision"):
+        validate_config(config)

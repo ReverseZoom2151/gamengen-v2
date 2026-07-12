@@ -68,6 +68,7 @@ def test_checkpoint_payload_preserves_best_validation_loss(tmp_path):
         {"experiment_name": "test"}, tmp_path / "split.json", 0.25,
     )
     assert payload["best_validation_loss"] == 0.25
+    assert payload["base_model"] == {"name": None, "revision": None}
 
 
 def test_checkpoint_payload_includes_ema_when_enabled(tmp_path):

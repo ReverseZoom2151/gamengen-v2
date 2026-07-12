@@ -98,6 +98,10 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         raise ConfigError("environment.name must be chrome_dino, vizdoom, or mock")
     if not isinstance(diffusion["context_length"], int) or diffusion["context_length"] <= 0:
         raise ConfigError("diffusion.context_length must be a positive integer")
+    if "pretrained_revision" in diffusion:
+        revision = diffusion["pretrained_revision"]
+        if not isinstance(revision, str) or len(revision) != 40 or any(char not in "0123456789abcdef" for char in revision):
+            raise ConfigError("diffusion.pretrained_revision must be a 40-character lowercase commit SHA")
 
     diffusion_resolution = diffusion.get("resolution")
     if diffusion_resolution is not None:

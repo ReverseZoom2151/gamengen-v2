@@ -5,7 +5,7 @@ Engines*. It is an implementation-status document, not a reproduction result.
 
 | Paper element | Current state | Evidence / limitation |
 |---|---|---|
-| Stable Diffusion 1.4 base | Configured | Base revision is not pinned and no local model artifact is included |
+| Stable Diffusion 1.4 base | Pinned in profiles | All tier profiles pin `CompVis/stable-diffusion-v1-4` at revision `133a221b8aa7292a167afc5127cb63fb5005638b`; no local model artifact is included |
 | 320×240 game frames padded to 320×256 | Implemented | ViZDoom contract center-pads instead of vertically stretching |
 | 64-frame context | Configured in Tier 2/3 | No trained checkpoint validates long rollout behavior |
 | Current action / action history | Implemented | Fixed-length current-action contract and learned temporal action positions are unit-tested |

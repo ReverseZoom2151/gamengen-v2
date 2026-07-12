@@ -103,10 +103,15 @@ def _checkpoint_payload(
     model, optimizer, scheduler, scaler, step: int, config: dict, split_manifest_path: Path,
     best_validation_loss: float, ema: ExponentialMovingAverage | None = None,
 ) -> dict:
+    base_diffusion = config.get("diffusion", {})
     return {
         "format_version": 3,
         "step": step,
         "best_validation_loss": best_validation_loss,
+        "base_model": {
+            "name": base_diffusion.get("pretrained_model"),
+            "revision": base_diffusion.get("pretrained_revision"),
+        },
         "model": {
             "unet": model.unet.state_dict(),
             "action_embedding": model.action_embedding.state_dict(),
@@ -181,7 +186,7 @@ def train(config: dict) -> None:
         )
         use_amp = bool(config.get("mixed_precision", True) and device.type == "cuda")
         model = ActionConditionedDiffusionModel(
-            pretrained_model_name=diffusion["pretrained_model"], num_actions=config["environment"]["num_actions"],
+            pretrained_model_name=diffusion["pretrained_model"], pretrained_revision=diffusion.get("pretrained_revision"), num_actions=config["environment"]["num_actions"],
             action_embedding_dim=diffusion["action_embedding_dim"], context_length=diffusion["context_length"],
             num_noise_buckets=diffusion["noise_augmentation"]["num_buckets"], max_noise_level=diffusion["noise_augmentation"]["max_noise_level"],
             cfg_drop_prob=diffusion.get("cfg_drop_prob", 0.1), device=str(device), dtype=torch.float16 if use_amp else torch.float32,

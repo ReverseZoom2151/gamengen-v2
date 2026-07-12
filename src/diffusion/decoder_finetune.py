@@ -42,6 +42,7 @@ def finetune_decoder(config: dict):
     # Load model
     model = ActionConditionedDiffusionModel(
         pretrained_model_name=config["diffusion"]["pretrained_model"],
+        pretrained_revision=config["diffusion"].get("pretrained_revision"),
         num_actions=config["environment"].get("num_actions", 3),
         action_embedding_dim=config["diffusion"]["action_embedding_dim"],
         context_length=config["diffusion"]["context_length"],
@@ -134,7 +135,8 @@ def finetune_decoder(config: dict):
             atomic_torch_save({
                 "format_version": 1, "decoder": model.vae.decoder.state_dict(),
                 "optimizer": optimizer.state_dict(), "step": global_step,
-                "base_model": config["diffusion"]["pretrained_model"], "config": config,
+                "base_model": config["diffusion"]["pretrained_model"],
+                "base_model_revision": config["diffusion"].get("pretrained_revision"), "config": config,
                 "run_manifest": run_manifest,
             }, checkpoint_path)
             print(f"\nSaved decoder checkpoint: {checkpoint_path}\n")
@@ -146,7 +148,8 @@ def finetune_decoder(config: dict):
     atomic_torch_save({
         "format_version": 1, "decoder": model.vae.decoder.state_dict(),
         "optimizer": optimizer.state_dict(), "step": global_step,
-        "base_model": config["diffusion"]["pretrained_model"], "config": config,
+        "base_model": config["diffusion"]["pretrained_model"],
+        "base_model_revision": config["diffusion"].get("pretrained_revision"), "config": config,
         "run_manifest": run_manifest,
     }, final_path)
 

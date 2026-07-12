@@ -425,6 +425,7 @@ def main():
     print("Loading model...")
     model = ActionConditionedDiffusionModel(
         pretrained_model_name=config["diffusion"]["pretrained_model"],
+        pretrained_revision=config["diffusion"].get("pretrained_revision"),
         num_actions=config["environment"].get("num_actions", 3),
         action_embedding_dim=config["diffusion"]["action_embedding_dim"],
         context_length=config["diffusion"]["context_length"],

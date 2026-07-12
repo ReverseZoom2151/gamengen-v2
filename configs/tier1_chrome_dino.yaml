@@ -54,6 +54,7 @@ data_collection:
 diffusion:
   # Base Model
   pretrained_model: "CompVis/stable-diffusion-v1-4"
+  pretrained_revision: "133a221b8aa7292a167afc5127cb63fb5005638b"
   resolution:
     width: 512
     height: 256
