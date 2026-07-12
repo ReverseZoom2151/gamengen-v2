@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from diffusers import AutoencoderKL, DDIMScheduler, UNet2DConditionModel
+from src.diffusion.contracts import velocity_target
 
 
 class ActionEmbedding(nn.Module):
@@ -373,13 +374,7 @@ class ActionConditionedDiffusionModel(nn.Module):
         alphas_cumprod = self.noise_scheduler.alphas_cumprod.to(
             device=target_latents.device, dtype=target_latents.dtype
         )
-        alpha_t = alphas_cumprod[timesteps].sqrt()
-        sigma_t = (1 - alphas_cumprod[timesteps]).sqrt()
-
-        alpha_t = alpha_t.view(-1, 1, 1, 1)
-        sigma_t = sigma_t.view(-1, 1, 1, 1)
-
-        v_target = alpha_t * noise - sigma_t * target_latents
+        v_target = velocity_target(target_latents, noise, alphas_cumprod, timesteps)
         v_pred = model_output
 
         loss = F.mse_loss(v_pred, v_target)
