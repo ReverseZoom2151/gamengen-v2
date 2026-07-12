@@ -168,3 +168,12 @@ def test_recording_verifier_reports_valid_corpus_counts(tmp_path: Path):
     add_episode(recorder, env_id=0, length=3, offset=10)
     recorder.finalize()
     assert verify_recordings(str(tmp_path)) == {"episodes": 2, "frames": 7, "shards": 1}
+
+
+def test_recording_verifier_rejects_stale_metadata_counts(tmp_path: Path):
+    recorder = EpisodeRecorder(str(tmp_path), save_frequency=1)
+    add_episode(recorder, env_id=0, length=1)
+    recorder.finalize()
+    (tmp_path / "metadata.json").write_text('{"total_episodes": 99, "total_frames": 2}')
+    with pytest.raises(ValueError, match="total_episodes"):
+        verify_recordings(str(tmp_path))

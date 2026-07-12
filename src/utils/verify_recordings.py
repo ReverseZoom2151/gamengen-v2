@@ -17,11 +17,17 @@ def verify_recordings(data_dir: str) -> Dict[str, int]:
             raise ValueError(f"duplicate episode_id in recording corpus: {episode_id}")
         episode_ids.add(episode_id)
         total_frames += len(episode["frames"])
-    return {
+    summary = {
         "episodes": len(episode_ids),
         "frames": total_frames,
         "shards": len(loader.shard_files),
     }
+    for metadata_key, summary_key in (("total_episodes", "episodes"), ("total_frames", "frames")):
+        if metadata_key in loader.metadata and int(loader.metadata[metadata_key]) != summary[summary_key]:
+            raise ValueError(
+                f"metadata {metadata_key} does not match reconstructed {summary_key}"
+            )
+    return summary
 
 
 def main() -> None:
