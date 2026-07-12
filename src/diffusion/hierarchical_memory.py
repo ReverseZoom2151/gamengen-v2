@@ -37,7 +37,7 @@ class MemoryCompressor(nn.Module):
 
         # Temporal encoder (simple LSTM)
         self.lstm = nn.LSTM(
-            input_size=latent_dim * 8 * 8,  # Flattened latent
+            input_size=latent_dim * 8 * 8,
             hidden_size=hidden_dim,
             num_layers=2,
             batch_first=True,
@@ -58,8 +58,12 @@ class MemoryCompressor(nn.Module):
         """
         batch_size, seq_len, c, h, w = latent_sequence.shape
 
-        # Flatten latents
-        latents_flat = latent_sequence.reshape(batch_size, seq_len, -1)
+        # Stable Diffusion latent maps vary with input resolution. Pooling to a
+        # fixed spatial contract keeps the temporal compressor valid for every
+        # supported recording resolution.
+        latents = latent_sequence.reshape(batch_size * seq_len, c, h, w)
+        latents = torch.nn.functional.adaptive_avg_pool2d(latents, (8, 8))
+        latents_flat = latents.reshape(batch_size, seq_len, -1)
 
         # LSTM encoding
         _, (hidden, _) = self.lstm(latents_flat)
