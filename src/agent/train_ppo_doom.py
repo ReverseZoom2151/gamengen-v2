@@ -17,7 +17,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.environment.vizdoom_env import create_vizdoom_env
+from src.environment.vizdoom_env import ActionRepeatBiasWrapper, create_vizdoom_env
 from src.config import load_config, validate_config
 from src.utils.data_recorder import EpisodeRecorder
 
@@ -47,15 +47,22 @@ class RecordingCallback(BaseCallback):
         # observation_t_plus_1.  Recording them together preserves the exact
         # transition contract for every vectorized environment independently.
         observations = self.model._last_obs
+
+        def frame_at(batch, index):
+            """Record raw RGB frames, never PPO-only map/history features."""
+            if isinstance(batch, dict):
+                return batch["screen"][index]
+            return batch[index]
+
         for i in range(len(self.locals["infos"])):
             info = self.locals["infos"][i]
             done = bool(self.locals["dones"][i])
             truncated = bool(info.get("TimeLimit.truncated", False))
             self.recorder.add_transition(
-                observation=observations[i],
-                action=int(self.locals["actions"][i]),
+                observation=frame_at(observations, i),
+                action=int(info.get("executed_action", self.locals["actions"][i])),
                 reward=float(self.locals["rewards"][i]),
-                next_observation=self.locals["new_obs"][i],
+                next_observation=frame_at(self.locals["new_obs"], i),
                 terminated=done and not truncated,
                 truncated=truncated,
                 env_id=i,
@@ -113,11 +120,18 @@ def make_env(config: dict, rank: int = 0):
 
     def _init():
         environment = config["environment"]
+        observation_config = config["agent"].get("observation", {})
         kwargs = {
             "width": environment["resolution"]["width"],
             "height": environment["resolution"]["height"],
             "frame_skip": environment.get("action_repeat", 4),
             "use_paper_reward": config.get("use_paper_reward", config["agent"].get("reward_function") == "paper_doom"),
+            "include_automap": bool(observation_config.get("include_automap", False)),
+            "action_history_length": int(observation_config.get("action_history_length", 32)),
+            "agent_screen_width": int(observation_config.get("screen_width", 160)),
+            "agent_screen_height": int(observation_config.get("screen_height", 120)),
+            "automap_width": int(observation_config.get("automap_width", 160)),
+            "automap_height": int(observation_config.get("automap_height", 120)),
         }
         scenarios = environment.get("scenarios")
         if scenarios:
@@ -130,6 +144,12 @@ def make_env(config: dict, rank: int = 0):
             env = create_vizdoom_env(scenario=environment.get("scenario", environment.get("config_file", "basic")), visible=False, **kwargs)
 
         env.reset(seed=int(config.get("seed", 0)) + rank)
+
+        repeat_probability = float(environment.get("action_repeat_bias", 0.0))
+        if repeat_probability:
+            env = ActionRepeatBiasWrapper(
+                env, repeat_probability=repeat_probability, seed=int(config.get("seed", 0)) + rank
+            )
 
         # Wrap with Monitor for episode statistics
         env = Monitor(env)
@@ -200,12 +220,16 @@ def train_ppo_doom(config: dict):
     # - 10 epochs per update
     # - Learning rate: 1e-4
 
-    policy_kwargs = dict(
-        features_extractor_kwargs=dict(features_dim=512),
+    uses_paper_observation = bool(agent_config.get("observation", {}).get("include_automap", False))
+    policy = "MultiInputPolicy" if uses_paper_observation else "CnnPolicy"
+    policy_kwargs = (
+        {"features_extractor_kwargs": {"cnn_output_dim": 256}}
+        if uses_paper_observation
+        else {"features_extractor_kwargs": {"features_dim": 512}}
     )
 
     model = PPO(
-        "CnnPolicy",
+        policy,
         envs,
         learning_rate=agent_config["learning_rate"],
         n_steps=agent_config["n_steps"],

@@ -134,6 +134,10 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     if "action_repeat" in environment and (not isinstance(environment["action_repeat"], int) or environment["action_repeat"] <= 0):
         raise ConfigError("environment.action_repeat must be a positive integer")
 
+    repeat_bias = environment.get("action_repeat_bias", 0.0)
+    if isinstance(repeat_bias, bool) or not isinstance(repeat_bias, Real) or not 0 <= repeat_bias <= 1:
+        raise ConfigError("environment.action_repeat_bias must be between 0 and 1")
+
     agent = config["agent"]
     if "algorithm" in agent and agent["algorithm"] not in {"DQN", "PPO"}:
         raise ConfigError("agent.algorithm must be DQN or PPO")
@@ -141,6 +145,24 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         raise ConfigError("chrome_dino profile must use DQN")
     if environment["name"] == "vizdoom" and agent.get("algorithm") == "DQN":
         raise ConfigError("vizdoom profile must use PPO")
+
+    observation = agent.get("observation")
+    if observation is not None:
+        if not isinstance(observation, dict):
+            raise ConfigError("agent.observation must be a mapping")
+        for key in (
+            "action_history_length",
+            "screen_width",
+            "screen_height",
+            "automap_width",
+            "automap_height",
+        ):
+            if key in observation and (
+                not isinstance(observation[key], int) or observation[key] <= 0
+            ):
+                raise ConfigError(f"agent.observation.{key} must be a positive integer")
+        if observation.get("include_automap", False) and environment["name"] != "vizdoom":
+            raise ConfigError("agent.observation.include_automap is only supported by vizdoom")
 
     if config.get("mixed_precision") and config.get("device") == "cpu":
         raise ConfigError("mixed_precision cannot be enabled when device is explicitly cpu")

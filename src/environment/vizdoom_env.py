@@ -11,7 +11,41 @@ import gymnasium as gym
 import numpy as np
 import vizdoom as vzd
 from gymnasium import spaces
-from src.environment.doom_contracts import pad_rgb_frame, paper_reward
+from src.environment.doom_contracts import (
+    ActionRepeatBias,
+    DoomObservationHistory,
+    pad_rgb_frame,
+    paper_reward,
+)
+
+
+class ActionRepeatBiasWrapper(gym.Wrapper):
+    """Bias decisions toward the previous action and expose the applied action.
+
+    The policy still proposes an action every decision step.  With the configured
+    probability, this wrapper applies the prior action instead.  The distinction
+    is carried in ``info`` so trajectory recording can condition a world model on
+    what the game actually received.
+    """
+
+    def __init__(self, env: gym.Env, repeat_probability: float = 0.0, seed: int | None = None):
+        super().__init__(env)
+        self._bias = ActionRepeatBias(repeat_probability, seed=seed)
+
+    def reset(self, *, seed: int | None = None, options: dict | None = None):
+        self._bias.reset(seed)
+        return self.env.reset(seed=seed, options=options)
+
+    def step(self, action: int):
+        executed_action, action_repeated = self._bias.resolve(int(action))
+        observation, reward, terminated, truncated, info = self.env.step(executed_action)
+        info = dict(info)
+        info.update(
+            requested_action=int(action),
+            executed_action=executed_action,
+            action_repeated=action_repeated,
+        )
+        return observation, reward, terminated, truncated, info
 
 
 class ViZDoomEnv(gym.Env):
@@ -96,6 +130,12 @@ class ViZDoomEnv(gym.Env):
         render_mode: Optional[str] = None,
         visible: bool = False,
         scenarios_dir: Optional[str] = None,
+        include_automap: bool = False,
+        action_history_length: int = 32,
+        agent_screen_width: int = 160,
+        agent_screen_height: int = 120,
+        automap_width: int = 160,
+        automap_height: int = 120,
     ):
         """
         Args:
@@ -115,14 +155,53 @@ class ViZDoomEnv(gym.Env):
         self.render_mode = render_mode
         self.config_file = config_file
         self.scenarios_dir = scenarios_dir
+        self.include_automap = include_automap
+        self.observation_history = (
+            DoomObservationHistory(
+                num_actions=len(self.ACTIONS),
+                action_history_length=action_history_length,
+                screen_width=agent_screen_width,
+                screen_height=agent_screen_height,
+                map_width=automap_width,
+                map_height=automap_height,
+            )
+            if include_automap
+            else None
+        )
 
         # Action space contains named-button combinations.  The final vectors
         # are projected onto the scenario's actual enabled buttons after init.
         self.action_space = spaces.Discrete(len(self.ACTIONS))
 
         # Observation space: RGB image
-        self.observation_space = spaces.Box(
+        screen_space = spaces.Box(
             low=0, high=255, shape=(height, width, 3), dtype=np.uint8
+        )
+        self.observation_space = (
+            spaces.Dict(
+                {
+                    "screen": spaces.Box(
+                        low=0,
+                        high=255,
+                        shape=(agent_screen_height, agent_screen_width, 3),
+                        dtype=np.uint8,
+                    ),
+                    "automap": spaces.Box(
+                        low=0,
+                        high=255,
+                        shape=(automap_height, automap_width, 3),
+                        dtype=np.uint8,
+                    ),
+                    "action_history": spaces.Box(
+                        low=0,
+                        high=len(self.ACTIONS) - 1,
+                        shape=(action_history_length,),
+                        dtype=np.int64,
+                    ),
+                }
+            )
+            if include_automap
+            else screen_space
         )
 
         # Initialize ViZDoom game
@@ -143,6 +222,9 @@ class ViZDoomEnv(gym.Env):
         # Set screen resolution
         self.game.set_screen_resolution(vzd.ScreenResolution.RES_320X240)
         self.game.set_screen_format(vzd.ScreenFormat.RGB24)
+        if include_automap:
+            self.game.set_automap_buffer_enabled(True)
+            self.game.set_automap_mode(vzd.AutomapMode.NORMAL)
 
         # Window visibility
         self.game.set_window_visible(visible)
@@ -181,6 +263,19 @@ class ViZDoomEnv(gym.Env):
         screen = state.screen_buffer
 
         return pad_rgb_frame(screen, self.width, self.height)
+
+    def _get_automap(self) -> np.ndarray:
+        """Return the documented automap buffer in the configured RGB format."""
+        state = self.game.get_state()
+        if state is None or state.automap_buffer is None:
+            return np.zeros((self.height, self.width, 3), dtype=np.uint8)
+        return pad_rgb_frame(state.automap_buffer, self.width, self.height)
+
+    def _agent_observation(self, action: int | None = None):
+        screen = self._get_observation()
+        if self.observation_history is None:
+            return screen
+        return self.observation_history.observe(screen, self._get_automap(), action=action)
 
     def _get_game_variable(self, name: str) -> float:
         """Read a named ViZDoom variable without relying on scenario ordering."""
@@ -257,7 +352,9 @@ class ViZDoomEnv(gym.Env):
         self.episode_length = 0
 
         # Get initial observation
-        obs = self._get_observation()
+        if self.observation_history is not None:
+            self.observation_history.reset()
+        obs = self._agent_observation()
 
         # Initialize previous state
         game_vars = self._get_game_variables()
@@ -292,7 +389,7 @@ class ViZDoomEnv(gym.Env):
                 break
 
         # Get observation
-        obs = self._get_observation()
+        obs = self._agent_observation(action)
 
         # Check if episode is done
         terminated = self.game.is_episode_finished()
@@ -420,6 +517,12 @@ def create_vizdoom_env(
     frame_skip: int = 4,
     use_paper_reward: bool = False,
     visible: bool = False,
+    include_automap: bool = False,
+    action_history_length: int = 32,
+    agent_screen_width: int = 160,
+    agent_screen_height: int = 120,
+    automap_width: int = 160,
+    automap_height: int = 120,
 ) -> gym.Env:
     """
     Factory function to create ViZDoom environment
@@ -446,6 +549,12 @@ def create_vizdoom_env(
             height=height,
             frame_skip=frame_skip,
             visible=visible,
+            include_automap=include_automap,
+            action_history_length=action_history_length,
+            agent_screen_width=agent_screen_width,
+            agent_screen_height=agent_screen_height,
+            automap_width=automap_width,
+            automap_height=automap_height,
         )
     else:
         env = ViZDoomEnv(
@@ -454,6 +563,12 @@ def create_vizdoom_env(
             height=height,
             frame_skip=frame_skip,
             visible=visible,
+            include_automap=include_automap,
+            action_history_length=action_history_length,
+            agent_screen_width=agent_screen_width,
+            agent_screen_height=agent_screen_height,
+            automap_width=automap_width,
+            automap_height=automap_height,
         )
 
     return env

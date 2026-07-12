@@ -38,7 +38,8 @@ Python 3.10+ is required. GPU model training requires an independently
 configured supported PyTorch/CUDA installation. Optional game and model
 dependencies are intentionally not installed by the offline test path.
 See [dependency policy](docs/DEPENDENCY_POLICY.md) for version and platform
-compatibility rules.
+compatibility rules, and [ViZDoom integration notes](docs/VIZDOOM_INTEGRATION.md)
+for the DOOM runtime, assets, map input, and transition boundary.
 
 ## Commands
 

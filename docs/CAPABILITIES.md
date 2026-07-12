@@ -8,7 +8,7 @@ This document distinguishes implemented code from validated functionality.
 | Config validation | Implemented and unit-tested | Top-level typo detection, semantic validation, and executable tier profiles |
 | Offline CPU tests | Implemented | No model downloads or game runtimes required |
 | Chrome Dino training | In repair | Real environment must be validated before training claims |
-| ViZDoom PPO collection | In repair | Transition isolation is implemented; action/reward/scenario fidelity remains work in progress |
+| ViZDoom PPO collection | In repair | Transition isolation plus a map/action-history PPO input contract are unit-tested; real ViZDoom runtime, reward, and scenario validation remain work in progress |
 | Stable Diffusion training | In repair | Configured optimizer/scheduler/accumulation, episode-held-out validation, and resumable checkpoints are implemented; no reproduced checkpoint exists |
 | Decoder fine-tuning | Experimental | Artifacts are provenance-tagged and loadable; end-to-end evaluation remains incomplete |
 | Distillation | Quarantined / unavailable | Command fails explicitly; do not use for research claims |

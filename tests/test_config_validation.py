@@ -84,3 +84,15 @@ def test_validate_config_rejects_enabled_zero_noise_augmentation():
     config["diffusion"]["noise_augmentation"] = {"enabled": True, "num_buckets": 2, "max_noise_level": 0}
     with pytest.raises(ConfigError, match="must be positive"):
         validate_config(config)
+
+
+def test_validate_config_rejects_invalid_action_bias_and_non_doom_automap():
+    config = valid_config()
+    config["environment"]["action_repeat_bias"] = 1.1
+    with pytest.raises(ConfigError, match="action_repeat_bias"):
+        validate_config(config)
+
+    config = valid_config()
+    config["agent"]["observation"] = {"include_automap": True}
+    with pytest.raises(ConfigError, match="only supported by vizdoom"):
+        validate_config(config)
