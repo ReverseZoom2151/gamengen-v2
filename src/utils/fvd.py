@@ -4,8 +4,6 @@ Proper implementation using I3D (Inflated 3D ConvNet) for feature extraction
 Based on paper Section 5.1: "We measure the FVD"
 """
 
-import warnings
-
 import numpy as np
 import torch
 import torch.nn as nn
@@ -80,7 +78,7 @@ class FVDCalculator:
     using features from I3D network pretrained on Kinetics.
     """
 
-    def __init__(self, device: str = "cuda", use_pretrained: bool = True):
+    def __init__(self, device: str = "cuda", weights_path: str | None = None):
         """
         Args:
             device: Device for computation
@@ -94,21 +92,14 @@ class FVDCalculator:
 
             self.i3d = InceptionI3d(400, in_channels=3).to(device)
 
-            # Load pretrained weights
-            if use_pretrained:
-                # Would load from: https://github.com/piergiaj/pytorch-i3d
-                print("Using pretrained I3D model")
+            if not weights_path:
+                raise ValueError("FVD requires an explicit pretrained I3D weights_path")
+            self.i3d.load_state_dict(torch.load(weights_path, map_location=device, weights_only=True))
 
             self.using_full_i3d = True
 
-        except ImportError:
-            warnings.warn(
-                "pytorch-i3d not installed. Using simplified I3D. "
-                "For accurate FVD, install: pip install pytorch-i3d"
-            )
-            # Fallback to simplified version
-            self.i3d = I3D().to(device)
-            self.using_full_i3d = False
+        except ImportError as error:
+            raise RuntimeError("paper-comparable FVD requires pytorch-i3d and pretrained weights") from error
 
         self.i3d.eval()
 
@@ -169,6 +160,8 @@ class FVDCalculator:
         Returns:
             fvd: Fréchet Video Distance score
         """
+        if len(real_videos) != len(fake_videos) or len(real_videos) < 2:
+            raise ValueError("FVD requires equally sized real/fake sets with at least two videos")
         # Extract features in batches
         real_features = []
         fake_features = []
@@ -229,96 +222,11 @@ def evaluate_fvd_on_trajectories(
     Returns:
         dict with FVD scores
     """
-    fvd_calc = FVDCalculator(device=device)
-
-    real_videos = []
-    fake_videos = []
-
-    model.eval()
-
-    print(
-        f"Generating {num_trajectories} trajectories of length {trajectory_length}..."
+    raise NotImplementedError(
+        "This helper cannot produce valid FVD from one-window dataset batches. "
+        "Supply separately recorded real and autoregressively generated trajectories "
+        "to FVDCalculator.compute_fvd instead."
     )
-
-    from tqdm import tqdm
-
-    for traj_idx, batch in enumerate(tqdm(dataloader, total=num_trajectories)):
-        if traj_idx >= num_trajectories:
-            break
-
-        context_frames = batch["context_frames"].to(device)  # (1, context_len, 3, H, W)
-        context_actions = batch["context_actions"].to(device)  # (1, context_len)
-
-        # Generate trajectory auto-regressively
-        generated_trajectory = []
-        real_trajectory = []
-
-        # Start with real context
-        current_context_frames = context_frames.clone()
-        current_context_actions = context_actions.clone()
-
-        for step in range(trajectory_length):
-            # Generate next frame
-            with torch.no_grad():
-                generated_frame = model.generate(
-                    current_context_frames,
-                    current_context_actions,
-                    num_inference_steps=4,
-                    guidance_scale=1.5,
-                )
-
-            generated_trajectory.append(generated_frame[0])  # (3, H, W)
-
-            # Get real frame (if available in batch)
-            # For simplicity, we'll use teacher forcing for real trajectory
-            # In practice, would need to store longer trajectories
-
-            # Update context (roll and add new frame)
-            if step < len(batch["target_frame"]):
-                # Shift context window
-                current_context_frames = torch.cat(
-                    [current_context_frames[:, 1:], generated_frame.unsqueeze(1)], dim=1
-                )
-
-                # Update actions (use target action if available)
-                new_action = batch.get(
-                    "target_action", torch.zeros(1, dtype=torch.long, device=device)
-                )
-                current_context_actions = torch.cat(
-                    [current_context_actions[:, 1:], new_action.unsqueeze(1)], dim=1
-                )
-
-        # Convert trajectory to video format
-        generated_traj = torch.stack(generated_trajectory)  # (T, 3, H, W)
-        generated_traj = generated_traj.permute(1, 0, 2, 3).unsqueeze(
-            0
-        )  # (1, 3, T, H, W)
-
-        # For real trajectory, we'd need actual gameplay
-        # For now, use generated as placeholder (should replace with real data)
-        real_traj = generated_traj  # Placeholder
-
-        fake_videos.append(generated_traj.cpu())
-        real_videos.append(real_traj.cpu())
-
-    # Compute FVD
-    real_videos = torch.cat(real_videos, dim=0)  # (N, 3, T, H, W)
-    fake_videos = torch.cat(fake_videos, dim=0)
-
-    # Convert to (N, T, H, W, C) for FVD calculator
-    real_videos = real_videos.permute(0, 2, 3, 4, 1)
-    fake_videos = fake_videos.permute(0, 2, 3, 4, 1)
-
-    fvd = fvd_calc.compute_fvd(real_videos, fake_videos)
-
-    print(f"\nFVD ({trajectory_length} frames): {fvd:.2f}")
-    print(f"Paper reference: 114.02 (16 frames), 186.23 (32 frames)")
-
-    return {
-        "fvd": fvd,
-        "trajectory_length": trajectory_length,
-        "num_trajectories": num_trajectories,
-    }
 
 
 if __name__ == "__main__":
