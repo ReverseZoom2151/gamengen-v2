@@ -74,6 +74,18 @@ class ViZDoomEnv(gym.Env):
         [0, 0, 0, 0, 0, 0, 0, 0, 0],  # 42: Reserved
     ]
 
+    BUTTON_ORDER = (
+        "MOVE_FORWARD",
+        "MOVE_BACKWARD",
+        "MOVE_LEFT",
+        "MOVE_RIGHT",
+        "TURN_LEFT",
+        "TURN_RIGHT",
+        "ATTACK",
+        "SPEED",
+        "USE",
+    )
+
     def __init__(
         self,
         config_file: str = "basic.cfg",
@@ -103,7 +115,8 @@ class ViZDoomEnv(gym.Env):
         self.config_file = config_file
         self.scenarios_dir = scenarios_dir
 
-        # Action space: 43 discrete actions
+        # Action space contains named-button combinations.  The final vectors
+        # are projected onto the scenario's actual enabled buttons after init.
         self.action_space = spaces.Discrete(len(self.ACTIONS))
 
         # Observation space: RGB image
@@ -142,6 +155,7 @@ class ViZDoomEnv(gym.Env):
 
         # Initialize game
         self.game.init()
+        self.available_buttons = list(self.game.get_available_buttons())
 
         # Game state tracking
         self.episode_return = 0.0
@@ -171,6 +185,17 @@ class ViZDoomEnv(gym.Env):
 
         return screen
 
+    def _get_game_variable(self, name: str) -> float:
+        """Read a named ViZDoom variable without relying on scenario ordering."""
+
+        variable = getattr(vzd.GameVariable, name, None)
+        if variable is None:
+            return 0.0
+        try:
+            return float(self.game.get_game_variable(variable))
+        except Exception:
+            return 0.0
+
     def _get_game_variables(self) -> Dict[str, float]:
         """Get game variables for reward computation"""
         state = self.game.get_state()
@@ -185,30 +210,42 @@ class ViZDoomEnv(gym.Env):
                 "position_y": 0,
             }
 
-        game_vars = state.game_variables
-
-        # ViZDoom variables (depends on scenario config)
-        # Common variables: health, armor, ammo, killcount
-        variables = {
-            "health": game_vars[0] if len(game_vars) > 0 else 0,
-            "armor": game_vars[1] if len(game_vars) > 1 else 0,
-            "ammo": game_vars[2] if len(game_vars) > 2 else 0,
-            "killcount": game_vars[3] if len(game_vars) > 3 else 0,
-            "position_x": game_vars[4] if len(game_vars) > 4 else 0,
-            "position_y": game_vars[5] if len(game_vars) > 5 else 0,
+        return {
+            "health": self._get_game_variable("HEALTH"),
+            "armor": self._get_game_variable("ARMOR"),
+            "ammo": self._get_game_variable("SELECTED_WEAPON_AMMO"),
+            "killcount": self._get_game_variable("KILLCOUNT"),
+            "hitcount": self._get_game_variable("HITCOUNT"),
+            "itemcount": self._get_game_variable("ITEMCOUNT"),
+            "secretcount": self._get_game_variable("SECRETCOUNT"),
+            "position_x": self._get_game_variable("POSITION_X"),
+            "position_y": self._get_game_variable("POSITION_Y"),
         }
 
-        return variables
+    def _action_vector(self, action: int) -> list:
+        """Project a canonical action combination to this scenario's buttons."""
 
-    def _compute_reward(self, game_vars: Dict[str, float]) -> float:
+        if not self.action_space.contains(action):
+            raise ValueError(f"invalid ViZDoom action index: {action}")
+
+        requested = self.ACTIONS[action]
+        vector = [0] * len(self.available_buttons)
+        for requested_state, button_name in zip(requested, self.BUTTON_ORDER):
+            if not requested_state:
+                continue
+            button = getattr(vzd.Button, button_name, None)
+            if button is None or button not in self.available_buttons:
+                continue
+            vector[self.available_buttons.index(button)] = 1
+        return vector
+
+    def _compute_reward(self, game_vars: Dict[str, float], environment_reward: float) -> float:
         """
         Compute reward based on game variables
         Basic reward function (will be replaced by full Appendix A.5 version)
         """
         # Default: use game's built-in reward
-        reward = self.game.get_last_reward()
-
-        return reward
+        return environment_reward
 
     def reset(
         self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
@@ -232,6 +269,10 @@ class ViZDoomEnv(gym.Env):
         self.prev_ammo = game_vars["ammo"]
         self.prev_killcount = game_vars["killcount"]
         self.prev_position = (game_vars["position_x"], game_vars["position_y"])
+        if hasattr(self, "prev_hitcount"):
+            self.prev_hitcount = game_vars["hitcount"]
+            self.prev_items_count = game_vars["itemcount"]
+            self.prev_secrets_found = game_vars["secretcount"]
 
         info = self._get_info()
 
@@ -241,7 +282,7 @@ class ViZDoomEnv(gym.Env):
         """Execute one step in environment"""
 
         # Convert action index to button presses
-        action_vector = self.ACTIONS[action]
+        action_vector = self._action_vector(action)
 
         # Apply action for frame_skip frames (paper uses 4)
         total_reward = 0.0
@@ -264,7 +305,7 @@ class ViZDoomEnv(gym.Env):
         game_vars = self._get_game_variables()
 
         # Compute reward (using basic reward for now)
-        reward = self._compute_reward(game_vars)
+        reward = self._compute_reward(game_vars, total_reward)
 
         # Update tracking
         self.episode_return += reward
@@ -276,6 +317,10 @@ class ViZDoomEnv(gym.Env):
         self.prev_ammo = game_vars["ammo"]
         self.prev_killcount = game_vars["killcount"]
         self.prev_position = (game_vars["position_x"], game_vars["position_y"])
+        if hasattr(self, "prev_hitcount"):
+            self.prev_hitcount = game_vars["hitcount"]
+            self.prev_items_count = game_vars["itemcount"]
+            self.prev_secrets_found = game_vars["secretcount"]
 
         info = self._get_info()
 
@@ -325,7 +370,7 @@ class ViZDoomEnvWithPaperReward(ViZDoomEnv):
         self.visited_positions = set()
         self.prev_fragcount = 0
 
-    def _compute_reward(self, game_vars: Dict[str, float]) -> float:
+    def _compute_reward(self, game_vars: Dict[str, float], environment_reward: float) -> float:
         """
         Paper's reward function from Appendix A.5:
 
@@ -360,18 +405,20 @@ class ViZDoomEnvWithPaperReward(ViZDoomEnv):
             reward -= 5000
 
         # 3 & 4. Enemy hits and kills
+        hitcount = game_vars["hitcount"]
+        previous_hits = getattr(self, "prev_hitcount", hitcount)
+        if hitcount > previous_hits:
+            reward += 300 * (hitcount - previous_hits)
         if self.prev_killcount is not None:
             kills = killcount - self.prev_killcount
             if kills > 0:
                 reward += 1000 * kills  # Enemy kill reward
-                reward += 300 * kills  # Also count as hits
 
-        # 5. Item/weapon pickup (heuristic: health or armor increase)
-        if self.prev_health is not None and health > self.prev_health:
-            reward += 100  # Item pickup bonus
-
-        if self.prev_armor is not None and armor > self.prev_armor:
-            reward += 100  # Armor pickup bonus
+        # 5 & 6. Pickups and secrets are exposed directly by compatible scenarios.
+        itemcount = game_vars["itemcount"]
+        secretcount = game_vars["secretcount"]
+        reward += 100 * max(0, itemcount - self.prev_items_count)
+        reward += 500 * max(0, secretcount - self.prev_secrets_found)
 
         # 7. New area exploration
         current_pos = (int(pos_x / 100), int(pos_y / 100))  # Grid cells
@@ -415,6 +462,9 @@ class ViZDoomEnvWithPaperReward(ViZDoomEnv):
             int(game_vars["position_y"] / 100),
         )
         self.visited_positions.add(current_pos)
+        self.prev_hitcount = game_vars["hitcount"]
+        self.prev_items_count = game_vars["itemcount"]
+        self.prev_secrets_found = game_vars["secretcount"]
 
         return obs, info
 
@@ -441,7 +491,9 @@ def create_vizdoom_env(
     Returns:
         ViZDoom environment
     """
-    config_file = f"{scenario}.cfg"
+    config_file = Path(scenario).name
+    if not config_file.endswith(".cfg"):
+        config_file = f"{config_file}.cfg"
 
     if use_paper_reward:
         env = ViZDoomEnvWithPaperReward(
