@@ -3,9 +3,11 @@
 ## CI gates
 
 GitHub Actions use immutable action revisions, least-privilege read-only
-permissions, full-history Gitleaks secret scanning, and GitHub dependency
-review on pull requests. These gates complement, but do not replace, review of
-model and dataset artifacts before running research workloads.
+permissions, and full-history Gitleaks secret scanning. GitHub dependency
+review is included as an opt-in pull-request gate: enable dependency graph and
+the needed repository security setting, then set the `DEPENDENCY_REVIEW_ENABLED`
+repository variable to `true`. These gates complement, but do not replace,
+review of model and dataset artifacts before running research workloads.
 
 ## Responsible disclosure
 

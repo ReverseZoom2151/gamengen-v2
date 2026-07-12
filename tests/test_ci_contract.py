@@ -18,3 +18,5 @@ def test_security_workflow_has_secret_and_dependency_gates():
     assert re.search(r"gitleaks/gitleaks-action@[0-9a-f]{40}", workflow)
     assert re.search(r"actions/dependency-review-action@[0-9a-f]{40}", workflow)
     assert "fetch-depth: 0" in workflow
+    assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in workflow
+    assert "DEPENDENCY_REVIEW_ENABLED" in workflow
