@@ -94,6 +94,8 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
 
     if not isinstance(environment["num_actions"], int) or environment["num_actions"] <= 0:
         raise ConfigError("environment.num_actions must be a positive integer")
+    if environment["name"] not in {"chrome_dino", "vizdoom", "mock"}:
+        raise ConfigError("environment.name must be chrome_dino, vizdoom, or mock")
     if not isinstance(diffusion["context_length"], int) or diffusion["context_length"] <= 0:
         raise ConfigError("diffusion.context_length must be a positive integer")
 
@@ -129,6 +131,14 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
 
     if "action_repeat" in environment and (not isinstance(environment["action_repeat"], int) or environment["action_repeat"] <= 0):
         raise ConfigError("environment.action_repeat must be a positive integer")
+
+    agent = config["agent"]
+    if "algorithm" in agent and agent["algorithm"] not in {"DQN", "PPO"}:
+        raise ConfigError("agent.algorithm must be DQN or PPO")
+    if environment["name"] == "chrome_dino" and agent.get("algorithm") == "PPO":
+        raise ConfigError("chrome_dino profile must use DQN")
+    if environment["name"] == "vizdoom" and agent.get("algorithm") == "DQN":
+        raise ConfigError("vizdoom profile must use PPO")
 
     if config.get("mixed_precision") and config.get("device") == "cpu":
         raise ConfigError("mixed_precision cannot be enabled when device is explicitly cpu")

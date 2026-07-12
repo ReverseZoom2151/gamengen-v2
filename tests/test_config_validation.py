@@ -65,3 +65,15 @@ def test_validate_config_rejects_unknown_scheduler():
 def test_training_validation_requires_actual_training_fields():
     with pytest.raises(ConfigError, match="diffusion training is missing"):
         validate_diffusion_training_config(valid_config())
+
+
+def test_validate_config_rejects_unknown_environment_or_incompatible_agent():
+    invalid_environment = valid_config()
+    invalid_environment["environment"]["name"] = "typo"
+    with pytest.raises(ConfigError, match="environment.name"):
+        validate_config(invalid_environment)
+    invalid_agent = valid_config()
+    invalid_agent["environment"]["name"] = "vizdoom"
+    invalid_agent["agent"]["algorithm"] = "DQN"
+    with pytest.raises(ConfigError, match="vizdoom"):
+        validate_config(invalid_agent)
