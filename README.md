@@ -44,6 +44,7 @@ See [human-evaluation guidance](docs/HUMAN_EVALUATION.md) before running a
 blinded participant study.
 See the [security policy](docs/SECURITY.md) for CI gates and responsible
 disclosure guidance.
+See [latent-cache guidance](docs/LATENT_CACHE.md) before precomputing VAE data.
 
 ## Commands
 
