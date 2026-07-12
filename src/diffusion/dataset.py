@@ -20,6 +20,15 @@ from tqdm import tqdm
 from src.utils.data_recorder import load_npz_shard, validate_npz_shard
 
 
+def seed_worker(worker_id: int) -> None:
+    """Seed NumPy/Python worker-local randomness from PyTorch's worker seed."""
+    import random
+
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
 class GameplayDataset(Dataset):
     """
     Dataset for training diffusion model on gameplay recordings
@@ -319,6 +328,7 @@ def create_dataloader(
         num_workers=num_workers,
         pin_memory=True,
         persistent_workers=num_workers > 0,
+        worker_init_fn=seed_worker if num_workers > 0 else None,
     )
 
     return dataloader
@@ -350,7 +360,13 @@ def create_dataloaders(
     validation_indices = [index for key in validation_keys for index in by_episode[key]]
     train_indices = [index for key in train_keys for index in by_episode[key]]
     generator = torch.Generator().manual_seed(seed)
-    common = {"batch_size": batch_size, "num_workers": num_workers, "pin_memory": torch.cuda.is_available(), "persistent_workers": num_workers > 0}
+    common = {
+        "batch_size": batch_size,
+        "num_workers": num_workers,
+        "pin_memory": torch.cuda.is_available(),
+        "persistent_workers": num_workers > 0,
+        "worker_init_fn": seed_worker if num_workers > 0 else None,
+    }
     return (
         DataLoader(Subset(dataset, train_indices), shuffle=True, generator=generator, **common),
         DataLoader(Subset(dataset, validation_indices), shuffle=False, **common),

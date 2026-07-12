@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import numpy as np
+import torch
 
-from src.diffusion.dataset import GameplayDataset, create_dataloaders
+from src.diffusion.dataset import GameplayDataset, create_dataloaders, seed_worker
 import pytest
 
 from src.utils.data_recorder import DatasetLoader, EpisodeRecorder, load_npz_shard
@@ -188,3 +189,13 @@ def test_recording_verifier_rejects_stale_metadata_counts(tmp_path: Path):
     (tmp_path / "metadata.json").write_text('{"total_episodes": 99, "total_frames": 2}')
     with pytest.raises(ValueError, match="total_episodes"):
         verify_recordings(str(tmp_path))
+
+
+def test_worker_seed_initializes_python_and_numpy(monkeypatch):
+    import random
+
+    monkeypatch.setattr(torch, "initial_seed", lambda: 123)
+    seed_worker(0)
+    first = (random.random(), np.random.rand())
+    seed_worker(4)
+    assert first == (random.random(), np.random.rand())
