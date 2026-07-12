@@ -217,8 +217,43 @@ class EpisodeRecorder:
         print(f"Metadata saved to: {self._metadata_path}")
 
 
-def load_npz_shard(path: Path) -> List[Dict[str, Any]]:
-    """Load a versioned NPZ recorder shard without pickle deserialization."""
+def shard_checksum(path: Path) -> str:
+    """Return the content checksum stored in a recording manifest."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def validate_npz_shard(path: Path, expected_checksum: Optional[str] = None) -> None:
+    """Validate a shard's checksum and structural transition invariants."""
+    if expected_checksum is not None and shard_checksum(path) != expected_checksum:
+        raise ValueError(f"checksum mismatch for recording shard: {path}")
+    with np.load(path, allow_pickle=False) as data:
+        if "_manifest" not in data:
+            raise ValueError(f"recording shard has no manifest: {path}")
+        manifest = json.loads(str(data["_manifest"].item()))
+        if manifest.get("schema_version") != EpisodeRecorder.SCHEMA_VERSION:
+            raise ValueError(f"unsupported recorder schema in {path}")
+        episodes = manifest.get("episodes")
+        if not isinstance(episodes, list):
+            raise ValueError(f"invalid episode manifest in {path}")
+        for item in episodes:
+            prefix = item.get("prefix")
+            required = [f"{prefix}_{name}" for name in ("frames", "actions", "rewards", "terminated", "truncated")]
+            if not prefix or any(key not in data for key in required):
+                raise ValueError(f"missing arrays for episode in {path}")
+            frames, actions = data[f"{prefix}_frames"], data[f"{prefix}_actions"]
+            if frames.ndim != 4 or frames.shape[-1] not in (3, 4):
+                raise ValueError(f"episode frames must be HWC RGB(A) in {path}")
+            if len(frames) != len(actions) + 1 or len(actions) != int(item.get("length", -1)):
+                raise ValueError(f"invalid transition alignment in {path}")
+            for name in ("rewards", "terminated", "truncated"):
+                if len(data[f"{prefix}_{name}"]) != len(actions):
+                    raise ValueError(f"invalid {name} length in {path}")
+
+
+def load_npz_shard(path: Path, expected_checksum: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Load a validated versioned recorder shard without pickle deserialization."""
+
+    validate_npz_shard(path, expected_checksum)
 
     with np.load(path, allow_pickle=False) as data:
         manifest = json.loads(str(data["_manifest"].item()))
@@ -245,7 +280,7 @@ def load_npz_shard(path: Path) -> List[Dict[str, Any]]:
 class DatasetLoader:
     """Load versioned NPZ recordings, with warned support for legacy pickles."""
 
-    def __init__(self, data_dir: str, allow_legacy_pickle: bool = True):
+    def __init__(self, data_dir: str, allow_legacy_pickle: bool = True, verify_integrity: bool = True):
         self.data_dir = Path(data_dir)
 
         metadata_path = self.data_dir / "metadata.json"
@@ -261,6 +296,10 @@ class DatasetLoader:
             raise ValueError("legacy pickle recordings require allow_legacy_pickle=True")
         if self.batch_files:
             warnings.warn("loading legacy pickle recordings; migrate them before training", RuntimeWarning)
+        if verify_integrity:
+            checksums = self.metadata.get("shard_checksums", {})
+            for shard in self.shard_files:
+                validate_npz_shard(shard, checksums.get(shard.name))
         print(f"Found {len(self.shard_files)} NPZ shards and {len(self.batch_files)} legacy batches")
 
     def load_batch(self, batch_idx: int) -> List[Dict[str, Any]]:
@@ -269,7 +308,7 @@ class DatasetLoader:
             raise IndexError(f"batch {batch_idx} not found")
         path = sources[batch_idx]
         if path.suffix == ".npz":
-            return load_npz_shard(path)
+            return load_npz_shard(path, self.metadata.get("shard_checksums", {}).get(path.name))
         with path.open("rb") as handle:
             return pickle.load(handle)
 

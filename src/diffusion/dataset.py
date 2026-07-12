@@ -13,7 +13,7 @@ import torch
 from torch.utils.data import DataLoader, Dataset, Subset
 from tqdm import tqdm
 
-from src.utils.data_recorder import load_npz_shard
+from src.utils.data_recorder import load_npz_shard, validate_npz_shard
 
 
 class GameplayDataset(Dataset):
@@ -70,6 +70,9 @@ class GameplayDataset(Dataset):
             raise ValueError(f"No NPZ shards or legacy batch files found in {self.data_dir}")
         if self.batch_files:
             warnings.warn("using legacy pickle recordings; migrate to NPZ shards", RuntimeWarning)
+        checksums = self.metadata.get("shard_checksums", {})
+        for shard in self.shard_files:
+            validate_npz_shard(shard, checksums.get(shard.name))
 
         print(f"Found {len(self.shard_files)} NPZ shards and {len(self.batch_files)} legacy batches")
 
@@ -150,7 +153,7 @@ class GameplayDataset(Dataset):
 
         path = self.source_files[source_idx]
         if path.suffix == ".npz":
-            return load_npz_shard(path)
+            return load_npz_shard(path, self.metadata.get("shard_checksums", {}).get(path.name))
         with path.open("rb") as handle:
             return pickle.load(handle)
 

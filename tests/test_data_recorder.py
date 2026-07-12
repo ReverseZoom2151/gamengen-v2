@@ -3,6 +3,8 @@ from pathlib import Path
 import numpy as np
 
 from src.diffusion.dataset import GameplayDataset
+import pytest
+
 from src.utils.data_recorder import DatasetLoader, EpisodeRecorder, load_npz_shard
 
 
@@ -80,3 +82,13 @@ def test_npz_dataset_uses_canonical_target_action(tmp_path: Path):
     assert sample["context_actions"].tolist() == [0, 1]
     assert sample["target_action"].item() == 1
     assert sample["target_frame"].shape == (3, 4, 6)
+
+
+def test_checksum_validation_detects_tampered_shard(tmp_path: Path):
+    recorder = EpisodeRecorder(str(tmp_path), save_frequency=1)
+    add_episode(recorder, env_id=0, length=1)
+    recorder.finalize()
+    shard = tmp_path / "shard_000000.npz"
+    shard.write_bytes(shard.read_bytes() + b"tampered")
+    with pytest.raises(ValueError, match="checksum mismatch"):
+        DatasetLoader(str(tmp_path))
