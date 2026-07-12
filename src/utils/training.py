@@ -2,6 +2,10 @@
 
 import os
 import random
+import hashlib
+import json
+import platform
+import subprocess
 from pathlib import Path
 from typing import Any, Dict
 
@@ -48,3 +52,27 @@ def atomic_torch_save(payload: Dict[str, Any], destination: Path) -> None:
 def checkpoint_step(path: Path) -> int:
     """Return the numerical step from a ``checkpoint_step_<N>.pt`` filename."""
     return int(path.stem.removeprefix("checkpoint_step_"))
+
+
+def build_run_manifest(config: Dict[str, Any], data_dir: str | None = None) -> Dict[str, Any]:
+    """Capture the minimum provenance needed to interpret a training artifact."""
+    serialized = json.dumps(config, sort_keys=True, default=str).encode("utf-8")
+    try:
+        revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"], text=True, capture_output=True, check=True
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        revision = "unavailable"
+    manifest: Dict[str, Any] = {
+        "config_sha256": hashlib.sha256(serialized).hexdigest(),
+        "code_revision": revision,
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "torch": torch.__version__,
+        "cuda_available": torch.cuda.is_available(),
+    }
+    if data_dir:
+        metadata = Path(data_dir) / "metadata.json"
+        if metadata.is_file():
+            manifest["data_metadata_sha256"] = hashlib.sha256(metadata.read_bytes()).hexdigest()
+    return manifest

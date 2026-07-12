@@ -20,6 +20,7 @@ from src.diffusion.dataset import create_dataloaders
 from src.diffusion.optimizers import create_optimizer
 from src.utils.training import (
     atomic_torch_save,
+    build_run_manifest,
     capture_rng_state,
     checkpoint_step,
     restore_rng_state,
@@ -104,6 +105,7 @@ def _checkpoint_payload(model, optimizer, scheduler, scaler, step: int, config: 
         "scheduler": scheduler.state_dict(),
         "scaler": scaler.state_dict(),
         "rng_state": capture_rng_state(),
+        "run_manifest": build_run_manifest(config, config.get("data_dir")),
         "config": config,
     }
 
