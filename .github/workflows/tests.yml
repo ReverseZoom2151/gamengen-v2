@@ -34,6 +34,10 @@ jobs:
           test -f pyproject.toml
           test -d configs
           test -d tests
+      - name: Verify clean public-package install
+        run: |
+          python -m pip install --no-deps --no-build-isolation --target /tmp/gamengen-install .
+          PYTHONPATH=/tmp/gamengen-install python -c "import gamengen, gamengen.config"
 
   lint:
     runs-on: ubuntu-latest
