@@ -434,7 +434,7 @@ def main():
     model_state = checkpoint.get("model", checkpoint)
 
     model.unet.load_state_dict(model_state["unet"])
-    model.action_embedding.load_state_dict(model_state["action_embedding"])
+    model.action_embedding.load_state_dict(model_state["action_embedding"], strict=False)
     model.noise_aug_embedding.load_state_dict(model_state["noise_aug_embedding"])
     model.action_proj.load_state_dict(model_state["action_proj"])
 

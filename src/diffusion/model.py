@@ -9,49 +9,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from diffusers import AutoencoderKL, DDIMScheduler, UNet2DConditionModel
+from src.diffusion.conditioning import ActionEmbedding, NoiseAugmentationEmbedding
 from src.diffusion.contracts import velocity_target
-
-
-class ActionEmbedding(nn.Module):
-    """Embed discrete actions into continuous vectors"""
-
-    def __init__(self, num_actions: int, embedding_dim: int = 128):
-        super().__init__()
-        self.num_actions = num_actions
-        self.embedding_dim = embedding_dim
-
-        # Learnable action embeddings
-        self.embedding = nn.Embedding(num_actions, embedding_dim)
-
-    def forward(self, actions: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            actions: (batch_size, seq_len) - discrete action indices
-        Returns:
-            (batch_size, seq_len, embedding_dim)
-        """
-        return self.embedding(actions)
-
-
-class NoiseAugmentationEmbedding(nn.Module):
-    """Embedding for noise augmentation levels"""
-
-    def __init__(self, num_buckets: int = 10, embedding_dim: int = 128):
-        super().__init__()
-        self.num_buckets = num_buckets
-        self.embedding_dim = embedding_dim
-
-        # Learnable noise level embeddings
-        self.embedding = nn.Embedding(num_buckets, embedding_dim)
-
-    def forward(self, noise_levels: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            noise_levels: (batch_size,) - discrete noise level indices [0, num_buckets)
-        Returns:
-            (batch_size, embedding_dim)
-        """
-        return self.embedding(noise_levels)
 
 
 class ActionConditionedDiffusionModel(nn.Module):
@@ -119,7 +78,9 @@ class ActionConditionedDiffusionModel(nn.Module):
             self.vae.decoder.load_state_dict(checkpoint["decoder"])
 
         # Action embedding layer
-        self.action_embedding = ActionEmbedding(num_actions, action_embedding_dim).to(
+        self.action_embedding = ActionEmbedding(
+            num_actions, action_embedding_dim, context_length
+        ).to(
             device
         )
 
@@ -521,7 +482,7 @@ class ActionConditionedDiffusionModel(nn.Module):
         )
 
         self.unet.load_state_dict(checkpoint["unet"])
-        self.action_embedding.load_state_dict(checkpoint["action_embedding"])
+        self.action_embedding.load_state_dict(checkpoint["action_embedding"], strict=False)
         self.noise_aug_embedding.load_state_dict(checkpoint["noise_aug_embedding"])
         self.action_proj.load_state_dict(checkpoint["action_proj"])
 

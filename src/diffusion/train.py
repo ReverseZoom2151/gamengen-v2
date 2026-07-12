@@ -119,8 +119,10 @@ def _checkpoint_payload(
 def _restore_checkpoint(path: Path, model, optimizer, scheduler, scaler, device: torch.device) -> int:
     checkpoint = torch.load(path, map_location=device, weights_only=False)
     model_state = checkpoint.get("model", checkpoint)  # v1 compatibility
-    for name in ("unet", "action_embedding", "noise_aug_embedding", "action_proj"):
+    for name in ("unet", "noise_aug_embedding", "action_proj"):
         getattr(model, name).load_state_dict(model_state[name])
+    # Pre-position checkpoints lack only the newly introduced temporal table.
+    model.action_embedding.load_state_dict(model_state["action_embedding"], strict=False)
     optimizer.load_state_dict(checkpoint["optimizer"])
     if "scheduler" in checkpoint:
         scheduler.load_state_dict(checkpoint["scheduler"])
