@@ -46,6 +46,35 @@ def data_policy_ablation(config: dict, data_dirs: dict[str, str]) -> list[dict]:
     return plans
 
 
+def scenario_generalization_plan(config: dict, scenarios: Iterable[str]) -> list[dict]:
+    scenarios = list(scenarios)
+    if len(scenarios) < 2 or any(not item for item in scenarios):
+        raise ValueError("at least two non-empty scenarios are required")
+    plans = []
+    for held_out in scenarios:
+        plan = copy.deepcopy(config)
+        plan["evaluation"] = {**plan.get("evaluation", {}), "held_out_scenario": held_out, "train_scenarios": [item for item in scenarios if item != held_out]}
+        plan["experiment_name"] = f"{config['experiment_name']}-holdout-{held_out}"
+        plans.append(plan)
+    return plans
+
+
+def modality_ablation(config: dict, modalities: Iterable[str] = ("rgb", "rgb_depth", "rgb_labels")) -> list[dict]:
+    plans = []
+    for modality in modalities:
+        if modality not in {"rgb", "rgb_depth", "rgb_labels"}:
+            raise ValueError("unsupported modality")
+        plan = copy.deepcopy(config)
+        plan["evaluation"] = {**plan.get("evaluation", {}), "observation_modality": modality}
+        plan["experiment_name"] = f"{config['experiment_name']}-modality-{modality}"
+        plans.append(plan)
+    return plans
+
+
+def temporal_memory_ablation(config: dict, contexts: Iterable[int] = (1, 4, 16, 64)) -> list[dict]:
+    return context_length_ablation(config, contexts)
+
+
 def save_experiment_plan(path: str | Path, plans: list[dict]) -> Path:
     """Persist immutable planned configurations with deterministic hashes."""
     if not plans:

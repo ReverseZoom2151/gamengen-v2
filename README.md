@@ -98,6 +98,7 @@ gamengen-plan-ablations --config configs/tier3_full_doom.yaml \
 - [Data format](docs/DATA_FORMAT.md) and [latent cache](docs/LATENT_CACHE.md)
 - [ViZDoom integration](docs/VIZDOOM_INTEGRATION.md)
 - [Human evaluation](docs/HUMAN_EVALUATION.md)
+- [Behavioral and generalization evaluation](docs/BEHAVIORAL_EVALUATION.md)
 - [Reproducibility](docs/REPRODUCIBILITY.md) and [security policy](docs/SECURITY.md)
 - [Workspace layout](docs/WORKSPACE_LAYOUT.md)
 
